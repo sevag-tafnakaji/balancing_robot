@@ -1,0 +1,3 @@
+Run from inside of main directory
+
+openssl s_client -CAfile resources/ca.pem -cert resources/client.pem -key resources/client.key -verify 1 -tls1_2 -host 192.168.1.49 -port 443

@@ -1,0 +1,12 @@
+# build files
+build/
+
+# settings for vscode
+.vscode
+
+# passkeys and certificates for websockets/ssl
+*.key
+*.pem
+
+# Config for ESP RTOS
+sdkconfig*
