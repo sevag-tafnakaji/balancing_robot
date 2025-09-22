@@ -8,5 +8,7 @@ build/
 *.key
 *.pem
 
+*.projbuild
+
 # Config for ESP RTOS
 sdkconfig*
