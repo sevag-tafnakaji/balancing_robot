@@ -47,7 +47,7 @@ void set_motor_duties(float duty_A, float duty_B) {
     ui_duties[b_idx] = PWM_PERIOD * duty_B;
   }
 
-  uint32_t *pDuties = ui_duties;
+  uint32_t* pDuties = ui_duties;
   ESP_LOGD(tb6612fng_tag, "motor A mode: %d, motor B mode: %d", curr_mode_A,
            curr_mode_B);
   ESP_LOGD(tb6612fng_tag, "motor A duties: [%d, %d], motor B duties: [%d, %d]",
@@ -109,13 +109,12 @@ void initialise_driver() {
   pwm_stop(0x0);
 }
 
-void driver_task(void *args) {
+void driver_task(void* args) {
   initialise_driver();
 
   pwm_start();
 
   while (1) {
-
     ESP_LOGI(tb6612fng_tag, "Rotating slowly CW for 2 sec");
     set_both_motor_modes(MOTOR_CW);
 

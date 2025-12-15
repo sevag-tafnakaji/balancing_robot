@@ -6,17 +6,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "driver/i2c.h"
+#include "esp_err.h"
+#include "esp_log.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
-#include "esp_err.h"
-#include "esp_log.h"
-#include "esp_system.h"
-
-#include "driver/i2c.h"
-
-static const char *mpu6050_tag = "MPU6050";
+static const char* mpu6050_tag = "MPU6050";
 
 int mean_ax = 0;
 int mean_ay = 0;
@@ -31,22 +29,22 @@ int gyro_x_offset = 0;
 int gyro_y_offset = 0;
 int gyro_z_offset = 0;
 
-#define I2C_EXAMPLE_MASTER_SCL_IO 5      // gpio number for I2C master clock, D1
-#define I2C_EXAMPLE_MASTER_SDA_IO 4      // gpio number for I2C master data, D2
-#define I2C_EXAMPLE_MASTER_NUM I2C_NUM_0 // I2C port number for master dev
-#define I2C_EXAMPLE_MASTER_TX_BUF_DISABLE 0 // I2C master do not need buffer
-#define I2C_EXAMPLE_MASTER_RX_BUF_DISABLE 0 // I2C master do not need buffer
+#define I2C_EXAMPLE_MASTER_SCL_IO 5  // gpio number for I2C master clock, D1
+#define I2C_EXAMPLE_MASTER_SDA_IO 4  // gpio number for I2C master data, D2
+#define I2C_EXAMPLE_MASTER_NUM I2C_NUM_0     // I2C port number for master dev
+#define I2C_EXAMPLE_MASTER_TX_BUF_DISABLE 0  // I2C master do not need buffer
+#define I2C_EXAMPLE_MASTER_RX_BUF_DISABLE 0  // I2C master do not need buffer
 
-#define MPU6050_SENSOR_ADDR 0x68   // slave address for MPU6050 sensor
-#define MPU6050_CMD_START 0x41     // Command to set measure mode
-#define WRITE_BIT I2C_MASTER_WRITE // I2C master write
-#define READ_BIT I2C_MASTER_READ   // I2C master read
-#define ACK_CHECK_EN 0x1           // I2C master will check ack from slave
-#define ACK_CHECK_DIS 0x0          // I2C master will not check ack from slave
-#define ACK_VAL 0x0                // I2C ack value
-#define NACK_VAL 0x1               // I2C nack value
-#define LAST_NACK_VAL 0x2          // I2C last_nack value
-#define CONFIG_SEL_BIT 0x18 // bits to scale values of accel. and gyroscope
+#define MPU6050_SENSOR_ADDR 0x68    // slave address for MPU6050 sensor
+#define MPU6050_CMD_START 0x41      // Command to set measure mode
+#define WRITE_BIT I2C_MASTER_WRITE  // I2C master write
+#define READ_BIT I2C_MASTER_READ    // I2C master read
+#define ACK_CHECK_EN 0x1            // I2C master will check ack from slave
+#define ACK_CHECK_DIS 0x0           // I2C master will not check ack from slave
+#define ACK_VAL 0x0                 // I2C ack value
+#define NACK_VAL 0x1                // I2C nack value
+#define LAST_NACK_VAL 0x2           // I2C last_nack value
+#define CONFIG_SEL_BIT 0x18  // bits to scale values of accel. and gyroscope
 
 #define G_VALUE 9.80665f
 
@@ -78,8 +76,8 @@ int gyro_z_offset = 0;
 
 esp_err_t i2c_init();
 
-esp_err_t mpu6050_write(i2c_port_t, uint8_t, uint8_t *, size_t);
-esp_err_t mpu6050_read(i2c_port_t, uint8_t, uint8_t *, size_t);
+esp_err_t mpu6050_write(i2c_port_t, uint8_t, uint8_t*, size_t);
+esp_err_t mpu6050_read(i2c_port_t, uint8_t, uint8_t*, size_t);
 
 esp_err_t mpu6050_init(i2c_port_t);
 
@@ -91,6 +89,6 @@ void mean_measurements();
 
 void calibrate_mpu();
 
-void mpu6050_task(void *);
+void mpu6050_task(void*);
 
-#endif // MPU6050_H
+#endif  // MPU6050_H
