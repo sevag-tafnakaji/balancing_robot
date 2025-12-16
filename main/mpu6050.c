@@ -9,8 +9,8 @@
  * Pin assignment:
  *
  * - master:
- *    GPIO4 is assigned as the data signal of i2c master port
- *    GPIO5 is assigned as the clock signal of i2c master port
+ *    GPIO4 (D2) is assigned as the data signal of i2c master port
+ *    GPIO5 (D1) is assigned as the clock signal of i2c master port
  *
  * Connection:
  *
@@ -18,9 +18,7 @@
  * - no need to add external pull-up resistors, driver will enable internal
  * pull-up resistors.
  *
- * Test items:
- *
- * - read the sensor data, if connected.
+ * TODO: Figure out why using the %f flag in logging and printing doesn't work.
  */
 
 /**
@@ -149,89 +147,138 @@ esp_err_t mpu6050_init(i2c_port_t i2c_num) {
   return ESP_OK;
 }
 
-float acc_scale_value() {
+void acc_scale_value(struct sensorConfig_t* config) {
   uint8_t accel_range_bits;
-  float accel_scale = 0.0f;
   mpu6050_read(I2C_EXAMPLE_MASTER_NUM, ACCEL_CONFIG, &accel_range_bits, 1);
 
   accel_range_bits = accel_range_bits & CONFIG_SEL_BIT;
   ESP_LOGD(mpu6050_tag, "accel scale bits: %d", (uint16_t)accel_range_bits);
   switch (accel_range_bits) {
     case 0:
-      accel_scale = 2.0f * G_VALUE;  // 2 ^ 14 for pm 2g
+      config->scale_accel = 2.0f * G_VALUE;  // 2 ^ 14 for pm 2g
       break;
     case CONFIG_SEL_BIT:
-      accel_scale = 4.0f * G_VALUE;  // 2 ^ 13 for pm 4g
+      config->scale_accel = 4.0f * G_VALUE;  // 2 ^ 13 for pm 4g
       break;
     case CONFIG_SEL_BIT + 1:
-      accel_scale = 8.0f * G_VALUE;  // 2 ^ 12 for pm 8g
+      config->scale_accel = 8.0f * G_VALUE;  // 2 ^ 12 for pm 8g
       break;
     case CONFIG_SEL_BIT + 2:
-      accel_scale = 16.0f * G_VALUE;  // 2 ^ 11 for pm 16g
+      config->scale_accel = 16.0f * G_VALUE;  // 2 ^ 11 for pm 16g
       break;
   }
-
-  return accel_scale;
 }
 
-float gyro_scale_value() {
+void gyro_scale_value(struct sensorConfig_t* config) {
   uint8_t gyro_range_bits;
-  float gyro_scale = 0;
   mpu6050_read(I2C_EXAMPLE_MASTER_NUM, GYRO_CONFIG, &gyro_range_bits, 1);
 
   gyro_range_bits = gyro_range_bits & CONFIG_SEL_BIT;
   ESP_LOGD(mpu6050_tag, "Gyro scale bits: %d", (uint16_t)gyro_range_bits);
   switch (gyro_range_bits) {
     case 0:
-      gyro_scale = 250.0f;  // for 250 deg/s
+      config->scale_gyro = 250.0f;  // for 250 deg/s
       break;
     case CONFIG_SEL_BIT:
-      gyro_scale = 500.0f;  // for 500 deg/s
+      config->scale_gyro = 500.0f;  // for 500 deg/s
       break;
     case CONFIG_SEL_BIT + 1:
-      gyro_scale = 1000.0f;  // for 1000 deg/s
+      config->scale_gyro = 1000.0f;  // for 1000 deg/s
       break;
     case CONFIG_SEL_BIT + 2:
-      gyro_scale = 2000.0f;  // for 2000 deg/s
+      config->scale_gyro = 2000.0f;  // for 2000 deg/s
       break;
   }
+}
 
-  return gyro_scale;
+void read_raw_values(struct sensorData_t* dest, struct sensorConfig_t* config,
+                     bool scale) {
+  uint8_t sensor_data[14];
+  memset(sensor_data, 0, 14);
+
+  if (mpu6050_read(I2C_EXAMPLE_MASTER_NUM, ACCEL_XOUT_H, sensor_data, 14) !=
+      ESP_OK) {
+    ESP_LOGE(mpu6050_tag, "Failed when attempting to read raw values");
+  }
+  ESP_LOGD(mpu6050_tag, "Raw data: %d, %d, %d, %d, %d, %d",
+           ((int16_t)((sensor_data[0] << 8) | sensor_data[1]) +
+            config->offset_accel.x),
+           ((int16_t)((sensor_data[2] << 8) | sensor_data[3]) +
+            config->offset_accel.y),
+           ((int16_t)((sensor_data[4] << 8) | sensor_data[5]) +
+            config->offset_accel.z),
+           ((int16_t)((sensor_data[8] << 8) | sensor_data[9]) +
+            config->offset_gyro.x),
+           ((int16_t)((sensor_data[10] << 8) | sensor_data[11]) +
+            config->offset_gyro.y),
+           ((int16_t)((sensor_data[12] << 8) | sensor_data[13]) +
+            config->offset_gyro.z));
+
+  dest->accel.x = ((int16_t)((sensor_data[0] << 8) | sensor_data[1]) +
+                   config->offset_accel.x);
+  dest->accel.y = ((int16_t)((sensor_data[2] << 8) | sensor_data[3]) +
+                   config->offset_accel.y);
+  dest->accel.z = ((int16_t)((sensor_data[4] << 8) | sensor_data[5]) +
+                   config->offset_accel.z);
+  dest->gyro.x = ((int16_t)((sensor_data[8] << 8) | sensor_data[9]) +
+                  config->offset_gyro.x);
+  dest->gyro.y = ((int16_t)((sensor_data[10] << 8) | sensor_data[11]) +
+                  config->offset_gyro.y);
+  dest->gyro.z = ((int16_t)((sensor_data[12] << 8) | sensor_data[13]) +
+                  config->offset_gyro.z);
+
+  ESP_LOGD(mpu6050_tag, "dest: %d.%d, %d.%d, %d.%d, %d.%d, %d.%d, %d.%d",
+           (int)dest->accel.x, (int)(fabs(dest->accel.x) * 100) % 100,
+           (int)dest->accel.y, (int)(fabs(dest->accel.y) * 100) % 100,
+           (int)(16384 - dest->accel.z),
+           (int)(fabs(16384 - dest->accel.z) * 100) % 100, (int)dest->gyro.x,
+           (int)(fabs(dest->gyro.x) * 100) % 100, (int)dest->gyro.y,
+           (int)(fabs(dest->gyro.y) * 100) % 100, (int)dest->gyro.z,
+           (int)(fabs(dest->gyro.z) * 100) % 100);
+
+  if (scale) {
+    acc_scale_value(config);
+    gyro_scale_value(config);
+
+    dest->accel.x *= config->scale_accel / 32768.0f;
+    dest->accel.y *= config->scale_accel / 32768.0f;
+    dest->accel.z *= config->scale_accel / 32768.0f;
+    dest->gyro.x *= config->scale_gyro / 32768.0f;
+    dest->gyro.y *= config->scale_gyro / 32768.0f;
+    dest->gyro.z *= config->scale_gyro / 32768.0f;
+  }
 }
 
 void mean_measurements() {
   int i = 0;
   int ignore_first_n = 10;
-  uint8_t sensor_data[14];
-  long buff_ax = 0, buff_ay = 0, buff_az = 0, buff_gx = 0, buff_gy = 0,
-       buff_gz = 0;
+  // Only works when buffer is long int rather than floats
+  long buff_ax = 0;
+  long buff_ay = 0;
+  long buff_az = 0;
+  long buff_gx = 0;
+  long buff_gy = 0;
+  long buff_gz = 0;
+  struct sensorData_t current_reading;
 
   while (i < (CALIBRATION_BUFFER_SIZE + ignore_first_n + 1)) {
-    memset(sensor_data, 0, 14);
-    ESP_ERROR_CHECK(
-        mpu6050_read(I2C_EXAMPLE_MASTER_NUM, ACCEL_XOUT_H, sensor_data, 14));
+    read_raw_values(&current_reading, &mpu6050_config, false);
     if (i > ignore_first_n && i <= (CALIBRATION_BUFFER_SIZE + ignore_first_n)) {
-      buff_ax +=
-          ((int16_t)(sensor_data[0] << 8) | sensor_data[1]) + accel_x_offset;
-      buff_ay +=
-          ((int16_t)(sensor_data[2] << 8) | sensor_data[3]) + accel_y_offset;
-      buff_az +=
-          ((int16_t)(sensor_data[4] << 8) | sensor_data[5]) + accel_z_offset;
-      buff_gx +=
-          ((int16_t)(sensor_data[8] << 8) | sensor_data[9]) + gyro_x_offset;
-      buff_gy +=
-          ((int16_t)(sensor_data[10] << 8) | sensor_data[11]) + gyro_y_offset;
-      buff_gz +=
-          ((int16_t)(sensor_data[12] << 8) | sensor_data[13]) + gyro_z_offset;
+      buff_ax += current_reading.accel.x;
+      buff_ay += current_reading.accel.y;
+      buff_az += current_reading.accel.z;
+      buff_gx += current_reading.gyro.x;
+      buff_gy += current_reading.gyro.y;
+      buff_gz += current_reading.gyro.z;
     }
 
     if (i == (CALIBRATION_BUFFER_SIZE + ignore_first_n)) {
-      mean_ax = buff_ax / CALIBRATION_BUFFER_SIZE;
-      mean_ay = buff_ay / CALIBRATION_BUFFER_SIZE;
-      mean_az = buff_az / CALIBRATION_BUFFER_SIZE;
-      mean_gx = buff_gx / CALIBRATION_BUFFER_SIZE;
-      mean_gy = buff_gy / CALIBRATION_BUFFER_SIZE;
-      mean_gz = buff_gz / CALIBRATION_BUFFER_SIZE;
+      mean_values.accel.x = buff_ax / CALIBRATION_BUFFER_SIZE;
+      mean_values.accel.y = buff_ay / CALIBRATION_BUFFER_SIZE;
+      mean_values.accel.z = buff_az / CALIBRATION_BUFFER_SIZE;
+      mean_values.gyro.x = buff_gx / CALIBRATION_BUFFER_SIZE;
+      mean_values.gyro.y = buff_gy / CALIBRATION_BUFFER_SIZE;
+      mean_values.gyro.z = buff_gz / CALIBRATION_BUFFER_SIZE;
     }
     i++;
     vTaskDelay(2 / portTICK_RATE_MS);
@@ -240,78 +287,81 @@ void mean_measurements() {
 
 void calibrate_mpu() {
   ESP_LOGI(mpu6050_tag, "Beginning Calibration of MPU6050 IMU. Please Wait...");
-  accel_x_offset = -mean_ax / 8;
-  accel_y_offset = -mean_ay / 8;
-  accel_z_offset = (16384 - mean_az) / 8;
-  gyro_x_offset = -mean_gx / 4;
-  gyro_y_offset = -mean_gy / 4;
-  gyro_z_offset = -mean_gz / 4;
+  mpu6050_config.offset_accel.x = -mean_values.accel.x / 8;
+  mpu6050_config.offset_accel.y = -mean_values.accel.y / 8;
+  mpu6050_config.offset_accel.z = (16384 - mean_values.accel.z) / 8;
+  mpu6050_config.offset_gyro.x = -mean_values.gyro.x / 4;
+  mpu6050_config.offset_gyro.y = -mean_values.gyro.y / 4;
+  mpu6050_config.offset_gyro.z = -mean_values.gyro.z / 4;
 
   while (1) {
     int ready = 0;
     mean_measurements();
 
-    ESP_LOGD(mpu6050_tag, "MEAN: %d, %d, %d, %d, %d, %d", mean_ax, mean_ay,
-             16384 - mean_az, mean_gx, mean_gy, mean_gz);
-    ESP_LOGD(mpu6050_tag, "OFFSET: %d, %d, %d, %d, %d, %d", accel_x_offset,
-             accel_y_offset, accel_z_offset, gyro_x_offset, gyro_y_offset,
-             gyro_z_offset);
+    ESP_LOGD(
+        mpu6050_tag, "MEAN: %d.%d, %d.%d, %d.%d, %d.%d, %d.%d, %d.%d",
+        (int)mean_values.accel.x, (int)(fabs(mean_values.accel.x) * 100) % 100,
+        (int)mean_values.accel.y, (int)(fabs(mean_values.accel.y) * 100) % 100,
+        (int)(16384 - mean_values.accel.z),
+        (int)(fabs(16384 - mean_values.accel.z) * 100) % 100,
+        (int)mean_values.gyro.x, (int)(fabs(mean_values.gyro.x) * 100) % 100,
+        (int)mean_values.gyro.y, (int)(fabs(mean_values.gyro.y) * 100) % 100,
+        (int)mean_values.gyro.z, (int)(fabs(mean_values.gyro.z) * 100) % 100);
+    ESP_LOGD(mpu6050_tag, "OFFSET: %d, %d, %d, %d, %d, %d",
+             mpu6050_config.offset_accel.x, mpu6050_config.offset_accel.y,
+             mpu6050_config.offset_accel.z, mpu6050_config.offset_gyro.x,
+             mpu6050_config.offset_gyro.y, mpu6050_config.offset_gyro.z);
 
-    if (abs(mean_ax) <= ACCELERATION_DEADZONE)
+    //  If mean values are low enough/within expected values, sensor is
+    //  calibrated otherwise update the offset value to minimize the mean.
+    if (abs(mean_values.accel.x) <= ACCELERATION_DEADZONE)
       ready++;
     else
-      accel_x_offset = accel_x_offset - mean_ax / ACCELERATION_DEADZONE;
+      mpu6050_config.offset_accel.x =
+          mpu6050_config.offset_accel.x -
+          mean_values.accel.x / ACCELERATION_DEADZONE;
 
-    if (abs(mean_ay) <= ACCELERATION_DEADZONE)
+    if (abs(mean_values.accel.y) <= ACCELERATION_DEADZONE)
       ready++;
     else
-      accel_y_offset = accel_y_offset - mean_ay / ACCELERATION_DEADZONE;
+      mpu6050_config.offset_accel.y =
+          mpu6050_config.offset_accel.y -
+          mean_values.accel.y / ACCELERATION_DEADZONE;
 
-    if (abs(16384 - mean_az) <= ACCELERATION_DEADZONE)
+    if (abs(16384 - mean_values.accel.z) <= ACCELERATION_DEADZONE)
       ready++;
     else
-      accel_z_offset =
-          accel_z_offset + (16384 - mean_az) / ACCELERATION_DEADZONE;
+      mpu6050_config.offset_accel.z =
+          mpu6050_config.offset_accel.z +
+          (16384 - mean_values.accel.z) / ACCELERATION_DEADZONE;
 
-    if (abs(mean_gx) <= GYROSCOPE_DEADZONE)
+    if (abs(mean_values.gyro.x) <= GYROSCOPE_DEADZONE)
       ready++;
     else
-      gyro_x_offset = gyro_x_offset - mean_gx / (GYROSCOPE_DEADZONE + 1);
+      mpu6050_config.offset_gyro.x =
+          mpu6050_config.offset_gyro.x -
+          mean_values.gyro.x / (GYROSCOPE_DEADZONE + 1);
 
-    if (abs(mean_gy) <= GYROSCOPE_DEADZONE)
+    if (abs(mean_values.gyro.y) <= GYROSCOPE_DEADZONE)
       ready++;
     else
-      gyro_y_offset = gyro_y_offset - mean_gy / (GYROSCOPE_DEADZONE + 1);
+      mpu6050_config.offset_gyro.y =
+          mpu6050_config.offset_gyro.y -
+          mean_values.gyro.y / (GYROSCOPE_DEADZONE + 1);
 
-    if (abs(mean_gz) <= GYROSCOPE_DEADZONE)
+    if (abs(mean_values.gyro.z) <= GYROSCOPE_DEADZONE)
       ready++;
     else
-      gyro_z_offset = gyro_z_offset - mean_gz / (GYROSCOPE_DEADZONE + 1);
+      mpu6050_config.offset_gyro.z =
+          mpu6050_config.offset_gyro.z -
+          mean_values.gyro.z / (GYROSCOPE_DEADZONE + 1);
 
     if (ready == 6) break;
   }
   ESP_LOGI(mpu6050_tag, "Calibration Finished");
 }
 
-/**
- * TODO:
- *  Expand this to use en EKF filter rather than raw measurements.
- *  Split functionalities into separate functions.
- *  Reduce magic number usage
- */
-
 void mpu6050_task(void* arg) {
-  uint8_t sensor_data[14];
-  float acc_scale;
-  float gyro_scale;
-  double accel_x;
-  double accel_y;
-  double accel_z;
-
-  double gyro_x;
-  double gyro_y;
-  double gyro_z;
-
   portTickType xLastWakeTime;
 
   mpu6050_init(I2C_EXAMPLE_MASTER_NUM);
@@ -321,51 +371,31 @@ void mpu6050_task(void* arg) {
   xLastWakeTime = xTaskGetTickCount();
 
   while (1) {
-    memset(sensor_data, 0, 14);
+    read_raw_values(&raw_sensor_values, &mpu6050_config, true);
 
-    if (mpu6050_read(I2C_EXAMPLE_MASTER_NUM, ACCEL_XOUT_H, sensor_data, 14) ==
-        ESP_OK) {
-      ESP_LOGD(mpu6050_tag, "*******************\n");
+    ESP_LOGD(mpu6050_tag, "Accel scale: %d.%d, Gyro scale: %d.%d",
+             (int)mpu6050_config.scale_accel,
+             (int)(fabs(mpu6050_config.scale_accel) * 100) % 100,
+             (int)mpu6050_config.scale_gyro,
+             (int)(fabs(mpu6050_config.scale_gyro) * 100) % 100);
 
-      acc_scale = acc_scale_value();
-      gyro_scale = gyro_scale_value();
+    ESP_LOGD(mpu6050_tag,
+             " accel_x: %d.%d, accel_y: %d.%d, accel_z: %d.%d, gyro_x: %d.%d, "
+             "gyro_y: %d.%d, gyro_z: %d.%d",
+             (int)raw_sensor_values.accel.x,
+             (int)(fabs(raw_sensor_values.accel.x) * 100) % 100,
+             (int)raw_sensor_values.accel.y,
+             (int)(fabs(raw_sensor_values.accel.y) * 100) % 100,
+             (int)(raw_sensor_values.accel.z),
+             (int)(fabs(raw_sensor_values.accel.z) * 100) % 100,
+             (int)raw_sensor_values.gyro.x,
+             (int)(fabs(raw_sensor_values.gyro.x) * 100) % 100,
+             (int)raw_sensor_values.gyro.y,
+             (int)(fabs(raw_sensor_values.gyro.y) * 100) % 100,
+             (int)raw_sensor_values.gyro.z,
+             (int)(fabs(raw_sensor_values.gyro.z) * 100) % 100);
 
-      accel_x =
-          ((int16_t)((sensor_data[0] << 8) | sensor_data[1]) + accel_x_offset) /
-          32768.0 * acc_scale;
-      accel_y =
-          ((int16_t)((sensor_data[2] << 8) | sensor_data[3]) + accel_y_offset) /
-          32768.0 * acc_scale;
-      accel_z =
-          ((int16_t)((sensor_data[4] << 8) | sensor_data[5]) + accel_z_offset) /
-          32768.0 * acc_scale;
-      gyro_x =
-          ((int16_t)((sensor_data[8] << 8) | sensor_data[9]) + gyro_x_offset) /
-          32768.0 * gyro_scale;
-      gyro_y = ((int16_t)((sensor_data[10] << 8) | sensor_data[11]) +
-                gyro_y_offset) /
-               32768.0 * gyro_scale;
-      gyro_z = ((int16_t)((sensor_data[12] << 8) | sensor_data[13]) +
-                gyro_z_offset) /
-               32768.0 * gyro_scale;
-
-      ESP_LOGD(mpu6050_tag, "Accel scale: %d.%d, Gyro scale: %d.%d",
-               (int)acc_scale, (int)(acc_scale * 100) % 100, (int)gyro_scale,
-               (int)(gyro_scale * 100) % 100);
-
-      ESP_LOGD(mpu6050_tag, " accel_x: %d.%d, accel_y: %d.%d, accel_z: %d.%d",
-               (int)accel_x, (int)(fabs(accel_x) * 100) % 100, (int)accel_y,
-               (int)(fabs(accel_y) * 100) % 100, (int)accel_z,
-               (int)(fabs(accel_z) * 100) % 100);
-      ESP_LOGD(mpu6050_tag, " gyro_x: %d.%d, gyro_y: %d.%d, gyro_z: %d.%d",
-               (int)gyro_x, (int)(fabs(gyro_x) * 100) % 100, (int)gyro_y,
-               (int)(fabs(gyro_y) * 100) % 100, (int)gyro_z,
-               (int)(fabs(gyro_z) * 100) % 100);
-    } else {
-      ESP_LOGE(mpu6050_tag, "No ack, sensor not connected...skip...\n");
-    }
-
-    vTaskDelayUntil(&xLastWakeTime, 20 / portTICK_RATE_MS);
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
 
   i2c_driver_delete(I2C_EXAMPLE_MASTER_NUM);

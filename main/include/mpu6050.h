@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "data_types.h"
 #include "driver/i2c.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -16,18 +17,12 @@
 
 static const char* mpu6050_tag = "MPU6050";
 
-int mean_ax = 0;
-int mean_ay = 0;
-int mean_az = 0;
-int mean_gx = 0;
-int mean_gy = 0;
-int mean_gz = 0;
-int accel_x_offset = 0;
-int accel_y_offset = 0;
-int accel_z_offset = 0;
-int gyro_x_offset = 0;
-int gyro_y_offset = 0;
-int gyro_z_offset = 0;
+struct sensorConfig_t mpu6050_config;
+struct sensorData_t mean_values;
+struct sensorData_t raw_sensor_values;
+
+// Period of 20ms
+TickType_t xFrequency = 20 / portTICK_RATE_MS;
 
 #define I2C_EXAMPLE_MASTER_SCL_IO 5  // gpio number for I2C master clock, D1
 #define I2C_EXAMPLE_MASTER_SDA_IO 4  // gpio number for I2C master data, D2
@@ -81,9 +76,11 @@ esp_err_t mpu6050_read(i2c_port_t, uint8_t, uint8_t*, size_t);
 
 esp_err_t mpu6050_init(i2c_port_t);
 
-float acc_scale_value();
+void acc_scale_value(struct sensorConfig_t*);
 
-float gyro_scale_value();
+void gyro_scale_value(struct sensorConfig_t*);
+
+void read_raw_values(struct sensorData_t*, struct sensorConfig_t*, bool);
 
 void mean_measurements();
 
