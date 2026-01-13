@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common_variables.h"
 #include "data_types.h"
 #include "driver/i2c.h"
 #include "esp_err.h"
@@ -14,15 +15,15 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "system_semaphores.h"
 
 static const char* mpu6050_tag = "MPU6050";
 
-struct sensorConfig_t mpu6050_config;
-struct sensorData_t mean_values;
-struct sensorData_t raw_sensor_values;
+sensorConfig_t mpu6050_config;
+sensorData_t mean_values;
 
-// Period of 20ms
-TickType_t xFrequency = 20 / portTICK_RATE_MS;
+// Period of 2ms
+TickType_t xSensorFrequency = 10 / portTICK_RATE_MS;
 
 #define I2C_EXAMPLE_MASTER_SCL_IO 5  // gpio number for I2C master clock, D1
 #define I2C_EXAMPLE_MASTER_SDA_IO 4  // gpio number for I2C master data, D2
@@ -76,11 +77,11 @@ esp_err_t mpu6050_read(i2c_port_t, uint8_t, uint8_t*, size_t);
 
 esp_err_t mpu6050_init(i2c_port_t);
 
-void acc_scale_value(struct sensorConfig_t*);
+void acc_scale_value(sensorConfig_t*);
 
-void gyro_scale_value(struct sensorConfig_t*);
+void gyro_scale_value(sensorConfig_t*);
 
-void read_raw_values(struct sensorData_t*, struct sensorConfig_t*, bool);
+void read_raw_values(sensorData_t*, sensorConfig_t*, bool);
 
 void mean_measurements();
 

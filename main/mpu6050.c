@@ -147,7 +147,7 @@ esp_err_t mpu6050_init(i2c_port_t i2c_num) {
   return ESP_OK;
 }
 
-void acc_scale_value(struct sensorConfig_t* config) {
+void acc_scale_value(sensorConfig_t* config) {
   uint8_t accel_range_bits;
   mpu6050_read(I2C_EXAMPLE_MASTER_NUM, ACCEL_CONFIG, &accel_range_bits, 1);
 
@@ -169,7 +169,7 @@ void acc_scale_value(struct sensorConfig_t* config) {
   }
 }
 
-void gyro_scale_value(struct sensorConfig_t* config) {
+void gyro_scale_value(sensorConfig_t* config) {
   uint8_t gyro_range_bits;
   mpu6050_read(I2C_EXAMPLE_MASTER_NUM, GYRO_CONFIG, &gyro_range_bits, 1);
 
@@ -191,14 +191,14 @@ void gyro_scale_value(struct sensorConfig_t* config) {
   }
 }
 
-void read_raw_values(struct sensorData_t* dest, struct sensorConfig_t* config,
-                     bool scale) {
+void read_raw_values(sensorData_t* dest, sensorConfig_t* config, bool scale) {
   uint8_t sensor_data[14];
   memset(sensor_data, 0, 14);
 
   if (mpu6050_read(I2C_EXAMPLE_MASTER_NUM, ACCEL_XOUT_H, sensor_data, 14) !=
       ESP_OK) {
     ESP_LOGE(mpu6050_tag, "Failed when attempting to read raw values");
+    return;  // exit function if failed to extract raw values
   }
   ESP_LOGD(mpu6050_tag, "Raw data: %d, %d, %d, %d, %d, %d",
            ((int16_t)((sensor_data[0] << 8) | sensor_data[1]) +
@@ -259,7 +259,7 @@ void mean_measurements() {
   long buff_gx = 0;
   long buff_gy = 0;
   long buff_gz = 0;
-  struct sensorData_t current_reading;
+  sensorData_t current_reading;
 
   while (i < (CALIBRATION_BUFFER_SIZE + ignore_first_n + 1)) {
     read_raw_values(&current_reading, &mpu6050_config, false);
@@ -368,10 +368,14 @@ void mpu6050_task(void* arg) {
 
   calibrate_mpu();
 
+  calibration_finished = true;
+
   xLastWakeTime = xTaskGetTickCount();
 
   while (1) {
+    xSemaphoreTake(sensors_sem, portMAX_DELAY);
     read_raw_values(&raw_sensor_values, &mpu6050_config, true);
+    xSemaphoreGive(sensors_sem);
 
     ESP_LOGD(mpu6050_tag, "Accel scale: %d.%d, Gyro scale: %d.%d",
              (int)mpu6050_config.scale_accel,
@@ -395,7 +399,7 @@ void mpu6050_task(void* arg) {
              (int)raw_sensor_values.gyro.z,
              (int)(fabs(raw_sensor_values.gyro.z) * 100) % 100);
 
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    vTaskDelayUntil(&xLastWakeTime, xSensorFrequency);
   }
 
   i2c_driver_delete(I2C_EXAMPLE_MASTER_NUM);
