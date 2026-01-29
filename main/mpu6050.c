@@ -71,7 +71,7 @@ esp_err_t mpu6050_write(i2c_port_t i2c_num, uint8_t reg_address, uint8_t* data,
   i2c_master_write_byte(cmd, reg_address, ACK_CHECK_EN);
   i2c_master_write(cmd, data, data_len, ACK_CHECK_EN);
   i2c_master_stop(cmd);
-  ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+  ret = i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(1000));
   i2c_cmd_link_delete(cmd);
 
   return ret;
@@ -112,7 +112,7 @@ esp_err_t mpu6050_read(i2c_port_t i2c_num, uint8_t reg_address, uint8_t* data,
                         ACK_CHECK_EN);
   i2c_master_write_byte(cmd, reg_address, ACK_CHECK_EN);
   i2c_master_stop(cmd);
-  ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+  ret = i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(1000));
   i2c_cmd_link_delete(cmd);
 
   if (ret != ESP_OK) {
@@ -124,7 +124,7 @@ esp_err_t mpu6050_read(i2c_port_t i2c_num, uint8_t reg_address, uint8_t* data,
   i2c_master_write_byte(cmd, MPU6050_SENSOR_ADDR << 1 | READ_BIT, ACK_CHECK_EN);
   i2c_master_read(cmd, data, data_len, LAST_NACK_VAL);
   i2c_master_stop(cmd);
-  ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+  ret = i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(1000));
   i2c_cmd_link_delete(cmd);
 
   return ret;
@@ -132,7 +132,7 @@ esp_err_t mpu6050_read(i2c_port_t i2c_num, uint8_t reg_address, uint8_t* data,
 
 esp_err_t mpu6050_init(i2c_port_t i2c_num) {
   uint8_t cmd_data;
-  vTaskDelay(100 / portTICK_RATE_MS);
+  vTaskDelay(pdMS_TO_TICKS(100));
   i2c_init();
   cmd_data = 0x00;  // reset mpu6050
   ESP_ERROR_CHECK(mpu6050_write(i2c_num, PWR_MGMT_1, &cmd_data, 1));
@@ -281,7 +281,7 @@ void mean_measurements() {
       mean_values.gyro.z = buff_gz / CALIBRATION_BUFFER_SIZE;
     }
     i++;
-    vTaskDelay(2 / portTICK_RATE_MS);
+    vTaskDelay(pdMS_TO_TICKS(2));
   }
 }
 
@@ -361,6 +361,22 @@ void calibrate_mpu() {
   ESP_LOGI(mpu6050_tag, "Calibration Finished");
 }
 
+esp_err_t write_to_queue(sensorData_t* data) {
+  /**
+   * Return:
+   *  ESP_OK in case writing to queue was successful
+   *  ESP_ in case queue is full or timeout occured
+   *
+   */
+
+  BaseType_t response =
+      xQueueSendToBack(raw_sensor_queue, data, xQueueWriteBlockTime);
+  if (response == pdTRUE)
+    return ESP_OK;
+  else
+    return ESP_ERR_NO_MEM;
+}
+
 void mpu6050_task(void* arg) {
   portTickType xLastWakeTime;
 
@@ -373,9 +389,14 @@ void mpu6050_task(void* arg) {
   xLastWakeTime = xTaskGetTickCount();
 
   while (1) {
-    xSemaphoreTake(sensors_sem, portMAX_DELAY);
     read_raw_values(&raw_sensor_values, &mpu6050_config, true);
-    xSemaphoreGive(sensors_sem);
+
+    // blocking action:
+    if (write_to_queue(&raw_sensor_values) != ESP_OK) {
+      ESP_LOGE(mpu6050_tag,
+               "Failed when attempting to send raw values to queue");
+      continue;
+    }
 
     ESP_LOGD(mpu6050_tag, "Accel scale: %d.%d, Gyro scale: %d.%d",
              (int)mpu6050_config.scale_accel,

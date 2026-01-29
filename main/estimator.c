@@ -5,6 +5,23 @@
 
 static const char* estimator_tag = "Estimator";
 
+esp_err_t read_from_queue(sensorData_t* dest) {
+  /**
+   * Return:
+   *  ESP_OK in case writing to queue was successful
+   *  ESP_ in case queue is full or timeout occured
+   *
+   */
+
+  BaseType_t response =
+      xQueueReceive(raw_sensor_queue, dest, xQueueRecieveBlockTime);
+
+  if (response == pdTRUE)
+    return ESP_OK;
+  else
+    return ESP_ERR_NO_MEM;
+}
+
 void initialise_estimates() {
   ESP_LOGI(estimator_tag, "Initialising estimator");
   xSemaphoreTake(estimator_sem, portMAX_DELAY);
@@ -23,7 +40,12 @@ void initialise_estimates() {
 }
 
 void estimate_angles(float dt, float tau) {
-  xSemaphoreTake(sensors_sem, portMAX_DELAY);
+  // blocking action:
+  if (read_from_queue(&raw_sensor_values) != ESP_OK) {
+    ESP_LOGE(estimator_tag,
+             "Failed when attempting to read raw values from queue");
+  }
+
   acc_est.roll = atan2(raw_sensor_values.accel.y, raw_sensor_values.accel.z);
   acc_est.pitch =
       atan2(-raw_sensor_values.accel.x,
@@ -34,9 +56,7 @@ void estimate_angles(float dt, float tau) {
   gyro_est.roll += raw_sensor_values.gyro.x * dt;
   gyro_est.pitch += raw_sensor_values.gyro.y * dt;
   gyro_est.yaw += raw_sensor_values.gyro.z * dt;
-  xSemaphoreGive(sensors_sem);
 
-  xSemaphoreTake(estimator_sem, portMAX_DELAY);
   fusion_est.roll = (tau) * (fusion_est.roll + gyro_est.roll * dt) +
                     (1 - tau) * acc_est.roll * (180 / M_PI);
   fusion_est.pitch = (tau) * (fusion_est.pitch + gyro_est.pitch * dt) +
@@ -46,7 +66,6 @@ void estimate_angles(float dt, float tau) {
            (int)(fusion_est.roll), (int)(fabs(fusion_est.roll) * 100) % 100,
            (int)(fusion_est.pitch), (int)(fabs(fusion_est.pitch) * 100) % 100,
            (int)(fusion_est.yaw), (int)(fabs(fusion_est.yaw) * 100) % 100);
-  xSemaphoreGive(estimator_sem);
 }
 
 void estimate_task(void* arg) {

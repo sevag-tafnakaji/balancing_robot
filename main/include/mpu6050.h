@@ -21,9 +21,10 @@ static const char* mpu6050_tag = "MPU6050";
 
 sensorConfig_t mpu6050_config;
 sensorData_t mean_values;
+sensorData_t raw_sensor_values;
 
-// Period of 2ms
-TickType_t xSensorFrequency = 10 / portTICK_RATE_MS;
+TickType_t xSensorFrequency = pdMS_TO_TICKS(20);
+TickType_t xQueueWriteBlockTime = portMAX_DELAY;
 
 #define I2C_EXAMPLE_MASTER_SCL_IO 5  // gpio number for I2C master clock, D1
 #define I2C_EXAMPLE_MASTER_SDA_IO 4  // gpio number for I2C master data, D2
@@ -76,6 +77,8 @@ esp_err_t mpu6050_write(i2c_port_t, uint8_t, uint8_t*, size_t);
 esp_err_t mpu6050_read(i2c_port_t, uint8_t, uint8_t*, size_t);
 
 esp_err_t mpu6050_init(i2c_port_t);
+
+esp_err_t write_to_queue(sensorData_t*);
 
 void acc_scale_value(sensorConfig_t*);
 
