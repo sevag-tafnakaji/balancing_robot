@@ -4,6 +4,7 @@
 #include "esp_system.h"
 #include "estimator.c"
 #include "mpu6050.c"
+#include "sample_multivariate_gaussian.c"
 #include "system_semaphores.c"
 #include "tb6612fng.c"
 
@@ -13,6 +14,35 @@ void app_main(void) {
   semaphores_init();
 
   ESP_LOGI(main_tag, "Beginning tasks");
+
+  // int dim = 3;
+  // float** cov = initialise_matrix(dim);
+
+  // cov[0][0] = 4.0f;
+  // cov[0][1] = 12.0f;
+  // cov[0][2] = -16.0f;
+  // cov[1][0] = 12.0f;
+  // cov[1][1] = 37.0f;
+  // cov[1][2] = -43.0f;
+  // cov[2][0] = -16.0f;
+  // cov[2][1] = -43.0f;
+  // cov[2][2] = 98.0f;
+
+  // ESP_LOGI(
+  //     main_tag,
+  //     "[[%d.%d, %d.%d, %d.%d]\n[%d.%d, %d.%d, %d.%d]\n[%d.%d, %d.%d,
+  //     %d.%d]]", (int)cov[0][0], (int)(fabs(cov[0][0]) * 100) % 100,
+  //     (int)cov[0][1], (int)(fabs(cov[0][1]) * 100) % 100, (int)cov[0][2],
+  //     (int)(fabs(cov[0][2]) * 100) % 100, (int)cov[1][0],
+  //     (int)(fabs(cov[1][0]) * 100) % 100, (int)cov[1][1],
+  //     (int)(fabs(cov[1][1]) * 100) % 100, (int)cov[1][2],
+  //     (int)(fabs(cov[1][2]) * 100) % 100, (int)cov[2][0],
+  //     (int)(fabs(cov[2][0]) * 100) % 100, (int)cov[2][1],
+  //     (int)(fabs(cov[2][1]) * 100) % 100, (int)cov[2][2],
+  //     (int)(fabs(cov[2][2]) * 100) % 100);
+
+  // Expected result: [[2, 6, -8], [0, 1, 5], [0, 0, 3]]
+  // test_chol(cov, dim);
 
   raw_sensor_queue = xQueueCreate(150, sizeof(sensorData_t));
 
