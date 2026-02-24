@@ -4,14 +4,11 @@
 #include "esp_system.h"
 #include "estimator.c"
 #include "mpu6050.c"
-#include "system_semaphores.c"
 #include "tb6612fng.c"
 
 static const char* main_tag = "main";
 
 void app_main(void) {
-  semaphores_init();
-
   ESP_LOGI(main_tag, "Beginning tasks");
 
   raw_sensor_queue = xQueueCreate(150, sizeof(sensorData_t));

@@ -377,6 +377,36 @@ esp_err_t write_to_queue(sensorData_t* data) {
     return ESP_ERR_NO_MEM;
 }
 
+void lowPassFilter() {
+  float alpha = 0.03;
+
+  raw_sensor_values.accel.x =
+      alpha * raw_sensor_values.accel.x + (1 - alpha) * old_data.accel.x;
+  raw_sensor_values.accel.y =
+      alpha * raw_sensor_values.accel.y + (1 - alpha) * old_data.accel.y;
+  raw_sensor_values.accel.z =
+      alpha * raw_sensor_values.accel.z + (1 - alpha) * old_data.accel.z;
+
+  raw_sensor_values.gyro.x =
+      alpha * raw_sensor_values.gyro.x + (1 - alpha) * old_data.gyro.x;
+  raw_sensor_values.gyro.y =
+      alpha * raw_sensor_values.gyro.y + (1 - alpha) * old_data.gyro.y;
+  raw_sensor_values.gyro.z =
+      alpha * raw_sensor_values.gyro.z + (1 - alpha) * old_data.gyro.z;
+
+  update_data();
+}
+
+void update_data() {
+  old_data.accel.x = raw_sensor_values.accel.x;
+  old_data.accel.y = raw_sensor_values.accel.y;
+  old_data.accel.z = raw_sensor_values.accel.z;
+
+  old_data.gyro.x = raw_sensor_values.gyro.x;
+  old_data.gyro.y = raw_sensor_values.gyro.y;
+  old_data.gyro.z = raw_sensor_values.gyro.z;
+}
+
 void mpu6050_task(void* arg) {
   portTickType xLastWakeTime;
 
@@ -387,9 +417,12 @@ void mpu6050_task(void* arg) {
   calibration_finished = true;
 
   xLastWakeTime = xTaskGetTickCount();
+  update_data();
 
   while (1) {
     read_raw_values(&raw_sensor_values, &mpu6050_config, true);
+
+    lowPassFilter(old_data);
 
     // blocking action:
     if (write_to_queue(&raw_sensor_values) != ESP_OK) {

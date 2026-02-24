@@ -15,15 +15,15 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "system_semaphores.h"
 
 static const char* mpu6050_tag = "MPU6050";
 
 sensorConfig_t mpu6050_config;
 sensorData_t mean_values;
 sensorData_t raw_sensor_values;
+sensorData_t old_data;
 
-TickType_t xSensorFrequency = pdMS_TO_TICKS(20);
+TickType_t xSensorFrequency = pdMS_TO_TICKS(10);
 TickType_t xQueueWriteBlockTime = portMAX_DELAY;
 
 #define I2C_EXAMPLE_MASTER_SCL_IO 5  // gpio number for I2C master clock, D1
@@ -89,6 +89,9 @@ void read_raw_values(sensorData_t*, sensorConfig_t*, bool);
 void mean_measurements();
 
 void calibrate_mpu();
+
+void update_data();
+void lowPassFilter();
 
 void mpu6050_task(void*);
 

@@ -7,7 +7,6 @@
 #include "data_types.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
-#include "system_semaphores.h"
 
 // angle estimates from gyroscope
 eulerAngles_t gyro_est;
