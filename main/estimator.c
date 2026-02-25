@@ -38,12 +38,6 @@ void initialise_estimates() {
 }
 
 void estimate_angles(float dt, float tau) {
-  // blocking action:
-  if (read_from_queue(&raw_sensor_values) != ESP_OK) {
-    ESP_LOGE(estimator_tag,
-             "Failed when attempting to read raw values from queue");
-  }
-
   float g = powf(raw_sensor_values.accel.x * raw_sensor_values.accel.x +
                      raw_sensor_values.accel.y * raw_sensor_values.accel.y +
                      raw_sensor_values.accel.z * raw_sensor_values.accel.z,
@@ -56,21 +50,22 @@ void estimate_angles(float dt, float tau) {
   float q = raw_sensor_values.gyro.y;
   float r = raw_sensor_values.gyro.z;
 
+  // Singularity when pitch close to ±pi/2, roll unexpected values due to
+  // division by 0
   gyro_est.roll = (p + tanf(fusion_est.pitch) * sinf(fusion_est.roll) * q +
-                   cosf(fusion_est.roll) * r) *
+                   tanf(fusion_est.pitch) * cosf(fusion_est.roll) * r) *
                   dt;
   gyro_est.pitch = (q * cosf(fusion_est.roll) - r * sinf(fusion_est.roll)) * dt;
+  gyro_est.yaw = (q * sinf(fusion_est.roll) / cosf(fusion_est.pitch) +
+                  r * cosf(fusion_est.roll) / cosf(fusion_est.pitch)) *
+                 dt;
 
   fusion_est.roll =
-      (tau) * (fusion_est.roll + gyro_est.roll) + (1 - tau) * acc_est.roll;
+      (1 - tau) * (fusion_est.roll + gyro_est.roll) + (tau)*acc_est.roll;
   fusion_est.pitch =
-      (tau) * (fusion_est.pitch + gyro_est.pitch) + (1 - tau) * acc_est.pitch;
-  fusion_est.yaw = 0;  // requires magnetometer for accurate yaw estimate
-
-  ESP_LOGI(estimator_tag, "Euler Angle Estimates: (%d.%d, %d.%d, %d.%d)",
-           (int)(fusion_est.roll), (int)(fabs(fusion_est.roll) * 100) % 100,
-           (int)(fusion_est.pitch), (int)(fabs(fusion_est.pitch) * 100) % 100,
-           (int)(fusion_est.yaw), (int)(fabs(fusion_est.yaw) * 100) % 100);
+      (1 - tau) * (fusion_est.pitch + gyro_est.pitch) + (tau)*acc_est.pitch;
+  // requires magnetometer for accurate yaw estimate
+  fusion_est.yaw = tau * gyro_est.yaw;
 }
 
 void estimate_task(void* arg) {
@@ -78,15 +73,36 @@ void estimate_task(void* arg) {
   initialise_estimates();
 
   xLastWakeTime = xTaskGetTickCount();
-  float tau = 0.80f;
-  dt = 0.02f;
+  float tau = 0.95f;
+  dt = 0.01f;
+
+  int counter = 0;
 
   while (1) {
-    if (calibration_finished) {
-      // ESP_LOGI(estimator_tag, "dt: %d.%d", (int)dt,
-      //          (int)(fabs(dt) * 100000) % 100000);
-      estimate_angles(dt, tau);
-      vTaskDelayUntil(&xLastWakeTime, xEstimatorFrequency);
+    if (!calibration_finished) {
+      continue;
     }
+
+    // blocking action:
+    if (read_from_queue(&raw_sensor_values) != ESP_OK) {
+      ESP_LOGE(estimator_tag,
+               "Failed when attempting to read raw values from queue");
+    }
+
+    estimate_angles(dt, tau);
+
+    if (counter % 5 == 0) {
+      ESP_LOGI(estimator_tag,
+               "Euler Angle Estimates: (%d.%d, %d.%d, %d.%d), counter: %d",
+               (int)(fusion_est.roll * 180 / M_PI),
+               (int)(fabs(fusion_est.roll * 180 / M_PI) * 100) % 100,
+               (int)(fusion_est.pitch * 180 / M_PI),
+               (int)(fabs(fusion_est.pitch * 180 / M_PI) * 100) % 100,
+               (int)(fusion_est.yaw * 180 / M_PI),
+               (int)(fabs(fusion_est.yaw * 180 / M_PI) * 100) % 100, counter);
+    }
+
+    counter++;
+    vTaskDelayUntil(&xLastWakeTime, xEstimatorFrequency);
   }
 }

@@ -23,7 +23,7 @@ sensorData_t mean_values;
 sensorData_t raw_sensor_values;
 sensorData_t old_data;
 
-TickType_t xSensorFrequency = pdMS_TO_TICKS(10);
+TickType_t xSensorFrequency = pdMS_TO_TICKS(5);
 TickType_t xQueueWriteBlockTime = portMAX_DELAY;
 
 #define I2C_EXAMPLE_MASTER_SCL_IO 5  // gpio number for I2C master clock, D1

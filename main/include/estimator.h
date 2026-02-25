@@ -17,7 +17,7 @@ eulerAngles_t acc_est;
 // angle estimate from sensor fusion
 eulerAngles_t fusion_est;
 
-TickType_t xEstimatorFrequency = pdMS_TO_TICKS(20);
+TickType_t xEstimatorFrequency = pdMS_TO_TICKS(10);
 TickType_t xQueueRecieveBlockTime = pdMS_TO_TICKS(10);
 
 float dt;
