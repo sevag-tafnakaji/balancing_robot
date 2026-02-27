@@ -1,8 +1,26 @@
 
 #include "tb6612fng.h"
 
+static const char* tb6612fng_tag = "TB6612FNG";
+
 // TODO: Implement state machine for direction transition and better duty cycle
 // changing
+esp_err_t read_from_motor_queue(motor_torque_t* dest) {
+  /**
+   * Return:
+   *  ESP_OK in case writing to queue was successful
+   *  ESP_ in case queue is full or timeout occured
+   *
+   */
+
+  BaseType_t response =
+      xQueueReceive(motor_torque_queue, dest, xMotorQueueRecieveBlockTime);
+
+  if (response == pdTRUE)
+    return ESP_OK;
+  else
+    return ESP_ERR_NO_MEM;
+}
 
 void set_motor_mode_A(int mode) {
   ESP_LOGD(tb6612fng_tag, "Setting motor A to mode %d", mode);
@@ -34,45 +52,74 @@ void set_both_motor_modes(int mode) {
 
 void set_motor_duties(float duty_A, float duty_B) {
   uint32_t ui_duties[4] = {0, 0, 0, 0};
+  update_motor_A_duty(duty_A, ui_duties);
+  update_motor_B_duty(duty_B, ui_duties);
+
+  // ESP_LOGI(tb6612fng_tag, "motor A mode: %d, motor B mode: %d", curr_mode_A,
+  //          curr_mode_B);
+  // ESP_LOGI(tb6612fng_tag, "motor A duties: [%d, %d], motor B duties: [%d,
+  // %d]",
+  //          ui_duties[0], ui_duties[1], ui_duties[2], ui_duties[3]);
+  ESP_ERROR_CHECK(pwm_set_duties(ui_duties));
+  ESP_ERROR_CHECK(pwm_start());
+}
+
+void update_motor_A_duty(float duty_A, uint32_t* duties) {
+  if (fabsf(duty_A) < MINIMUM_DUTY) {
+    duty_A = 0.0f;
+  }
+
+  if (duty_A > 0) {
+    set_motor_mode_A(MOTOR_CCW);
+  } else if (duty_A < 0) {
+    set_motor_mode_A(MOTOR_CW);
+  } else {
+    set_motor_mode_A(MOTOR_SHORT_BREAK);
+  }
+
+  duty_A = fabs(duty_A);
 
   if (curr_mode_A != MOTOR_SHORT_BREAK) {
     int a_idx = (curr_mode_A == MOTOR_CW) ? 0 : 1;
 
-    ui_duties[a_idx] = PWM_PERIOD * duty_A;
+    duties[a_idx] = PWM_PERIOD * duty_A;
   }
+
+  // ESP_LOGI(tb6612fng_tag, "motor A mode: %d", curr_mode_A);
+  // ESP_LOGI(tb6612fng_tag, "motor A duty: %d", (int)(duty_A * 100));
+}
+
+void update_motor_B_duty(float duty_B, uint32_t* duties) {
+  if (fabsf(duty_B) < MINIMUM_DUTY) {
+    duty_B = 0.0f;
+  }
+  if (duty_B > 0) {
+    set_motor_mode_B(MOTOR_CCW);
+  } else if (duty_B < 0) {
+    set_motor_mode_B(MOTOR_CW);
+  } else {
+    set_motor_mode_B(MOTOR_SHORT_BREAK);
+  }
+
+  duty_B = fabs(duty_B);
 
   if (curr_mode_B != MOTOR_SHORT_BREAK) {
     int b_idx = (curr_mode_B == MOTOR_CW) ? 2 : 3;
 
-    ui_duties[b_idx] = PWM_PERIOD * duty_B;
+    duties[b_idx] = PWM_PERIOD * duty_B;
   }
 
-  uint32_t* pDuties = ui_duties;
-  ESP_LOGD(tb6612fng_tag, "motor A mode: %d, motor B mode: %d", curr_mode_A,
-           curr_mode_B);
-  ESP_LOGD(tb6612fng_tag, "motor A duties: [%d, %d], motor B duties: [%d, %d]",
-           ui_duties[0], ui_duties[1], ui_duties[2], ui_duties[3]);
-  ESP_ERROR_CHECK(pwm_set_duties(pDuties));
-  ESP_ERROR_CHECK(pwm_start());
+  // ESP_LOGI(tb6612fng_tag, "motor B mode: %d", curr_mode_B);
+  // ESP_LOGI(tb6612fng_tag, "motor B duty: %d", (int)(duty_B * 100));
 }
 
 void initialise_pwms() {
-  //   uint32_t pins[] = {PWM_A, PWM_B};
-  //   uint32_t duties[] = {40, 40};
-
   uint32_t pins[] = {A_IN_1, A_IN_2, B_IN_1, B_IN_2};
   uint32_t duties[] = {0, 0, 0, 0};
 
-  //   ESP_ERROR_CHECK(pwm_init(PWM_PERIOD, duties, 2, pins));
   ESP_ERROR_CHECK(pwm_init(PWM_PERIOD, duties, 4, pins));
 
-  // ESP_ERROR_CHECK(pwm_set_phase(1u, 0.0f));
-  // initialise_pwm(PWM_PERIOD, 1.0f, 2u, PWM_B);
-  // ESP_ERROR_CHECK(pwm_set_phase(2u, 0.0f));
-
-  //   float phases[] = {0.0f, 0.0f};
   float phases[] = {0.0f, 0.0f, 0.0f, 0.0f};
-  // float *pPhases = phases;
 
   ESP_ERROR_CHECK(pwm_set_phases(phases));
   ESP_ERROR_CHECK(pwm_start());
@@ -109,46 +156,46 @@ void initialise_driver() {
   pwm_stop(0x0);
 }
 
+float clamp_and_convert_torque_to_duty(float torque) {
+  float torqueMin = -1.0f;
+  float torqueMax = 1.0f;
+
+  float clampedTorque = fminf(fmaxf(torqueMin, torque), torqueMax);
+
+  // consider only the magnitude of the torque, otherwise 0 torque = 0.5 duty
+  float noSignClampedTorque = fabsf(clampedTorque);
+  float convertedDuty = (noSignClampedTorque) / (torqueMax);
+
+  // update the converted duty to have the sign
+  convertedDuty *= clampedTorque / noSignClampedTorque;
+
+  return convertedDuty;
+}
+
+void set_torques() {
+  float d_l = clamp_and_convert_torque_to_duty(motor_torques.T_left);
+  float d_r = clamp_and_convert_torque_to_duty(motor_torques.T_right);
+
+  set_motor_duties(d_l, d_r);
+}
+
 void driver_task(void* args) {
   initialise_driver();
 
   pwm_start();
 
+  portTickType xLastWakeTime = xTaskGetTickCount();
+
   while (1) {
-    ESP_LOGI(tb6612fng_tag, "Rotating slowly CW for 2 sec");
-    set_both_motor_modes(MOTOR_CW);
+    // blocking action:
+    if (read_from_motor_queue(&motor_torques) != ESP_OK) {
+      ESP_LOGE(tb6612fng_tag,
+               "Failed when attempting to read motor torques from queue");
+      continue;
+    }
 
-    set_motor_duties(0.2, 0.2);
+    set_torques();
 
-    vTaskDelay(2000 / portTICK_RATE_MS);
-
-    // Stop for 1 second
-
-    ESP_LOGI(tb6612fng_tag, "Stopping for 1 sec");
-
-    set_both_motor_modes(MOTOR_SHORT_BREAK);
-
-    set_motor_duties(0, 0);
-
-    vTaskDelay(1000 / portTICK_RATE_MS);
-
-    // Rotate CCW faster for 2 seconds
-
-    ESP_LOGI(tb6612fng_tag, "Rotating quickly CCW for 2 sec");
-    set_both_motor_modes(MOTOR_CCW);
-
-    set_motor_duties(0.8, 0.8);
-
-    vTaskDelay(2000 / portTICK_RATE_MS);
-
-    // Stop for 1 second
-
-    ESP_LOGI(tb6612fng_tag, "Stopping for 1 sec");
-
-    set_both_motor_modes(MOTOR_SHORT_BREAK);
-
-    set_motor_duties(0, 0);
-
-    vTaskDelay(1000 / portTICK_RATE_MS);
+    vTaskDelayUntil(&xLastWakeTime, xDriverFrequency);
   }
 }

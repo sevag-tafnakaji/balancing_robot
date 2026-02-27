@@ -43,5 +43,5 @@ void app_main(void) {
 
   xTaskCreate(controller_task, "Controller task", 2048, NULL, 5, NULL);
 
-  // xTaskCreate(driver_task, "driver_test", 2048, NULL, 20, NULL);
+  xTaskCreate(driver_task, "DC Motor driver task", 2048, NULL, 5, NULL);
 }

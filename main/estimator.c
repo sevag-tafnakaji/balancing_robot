@@ -58,6 +58,7 @@ void initialise_estimates() {
   dt = 0.0f;
 }
 
+// TODO: This is a very bad estimator. Improve this
 void estimate_state(float dt, float tau) {
   float g = powf(raw_sensor_values.accel.x * raw_sensor_values.accel.x +
                      raw_sensor_values.accel.y * raw_sensor_values.accel.y +
@@ -92,7 +93,7 @@ void estimate_state(float dt, float tau) {
   state_est.omega = gyro_est.pitch / dt;
   // accel + friction term
   state_est.v += (raw_sensor_values.accel.x - 0.9f * state_est.v) * dt;
-  state_est.x += state_est.v * dt;
+  state_est.x += (state_est.v - 0.9 * state_est.x) * dt;
 }
 
 void estimate_task(void* arg) {

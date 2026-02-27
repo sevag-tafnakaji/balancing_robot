@@ -8,18 +8,9 @@
 #define B_IN_1 GPIO_NUM_12  // D6
 #define B_IN_2 GPIO_NUM_13  // D7
 
-/* #define GPIO_OUTPUT_PIN_SEL \
-   ((1ULL << PWM_A) | (1ULL << PWM_B) | (1ULL << A_IN_1) | (1ULL << A_IN_2) |  \
-    (1ULL << B_IN_1) | (1ULL << B_IN_2) | \ (1ULL << STBY)) // Combine output
-   pins to bitmap */
-/*#define GPIO_OUTPUT_PIN_SEL \
-  ((1ULL << PWM_A) | (1ULL << A_IN_1) | (1ULL << A_IN_2) |                     \
-   (1ULL << STBY)) // Combine output pins to bitmap */
 #define GPIO_OUTPUT_PIN_SEL                                                    \
   ((1ULL << A_IN_1) | (1ULL << A_IN_2) | (1ULL << B_IN_1) | (1ULL << B_IN_2) | \
    (1ULL << STBY))  // Combine output pins to bitmap
-// #define GPIO_OUTPUT_PIN_SEL ((1ULL << PWM_A) | (1ULL << A_IN_1) | (1ULL <<
-// A_IN_2) | (1ULL << STBY)) // Combine output pins to bitmap
 
 // Values for motor modes
 // #define MOTOR_STOP 0x00        // Mode In pins: LL
@@ -31,25 +22,38 @@ enum motor_dir { MOTOR_STOP, MOTOR_CW, MOTOR_CCW, MOTOR_SHORT_BREAK };
 
 // PWM period 50000us(1Khz)
 #define PWM_PERIOD 50000
+#define MINIMUM_DUTY 0.05f
 
+#include <math.h>
+
+#include "common_variables.h"
 #include "driver/gpio.h"
 #include "driver/pwm.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-static const char* tb6612fng_tag = "TB6612FNG";
 int curr_mode_A = MOTOR_STOP;
 int curr_mode_B = MOTOR_STOP;
+TickType_t xDriverFrequency = pdMS_TO_TICKS(10);
+TickType_t xMotorQueueRecieveBlockTime = pdMS_TO_TICKS(10);
+motor_torque_t motor_torques;
+
+esp_err_t read_from_motor_queue(motor_torque_t*);
 
 void set_motor_mode_A(int);
 void set_motor_mode_B(int);
+
+void update_motor_A_duty(float, uint32_t*);
+void update_motor_B_duty(float, uint32_t*);
 
 void set_motor_mode(int, char);
 
 void set_both_motor_modes(int);
 
 void set_motor_duties(float, float);
+
+float clamp_and_convert_torque_to_duty(float);
 
 void initialise_pwms();
 
