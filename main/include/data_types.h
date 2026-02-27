@@ -20,6 +20,18 @@ typedef struct {
 } eulerAngles_t;
 
 typedef struct {
+  float x;
+  float v;
+  float pitch;
+  float omega;
+} state_t;
+
+typedef struct {
+  float T_left;
+  float T_right;
+} motor_torque_t;
+
+typedef struct {
   Vec3f accel;
   Vec3f gyro;
 } sensorData_t;

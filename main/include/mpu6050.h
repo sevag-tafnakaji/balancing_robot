@@ -24,7 +24,7 @@ sensorData_t raw_sensor_values;
 sensorData_t old_data;
 
 TickType_t xSensorFrequency = pdMS_TO_TICKS(5);
-TickType_t xQueueWriteBlockTime = portMAX_DELAY;
+TickType_t xSensorQueueWriteBlockTime = portMAX_DELAY;
 
 #define I2C_EXAMPLE_MASTER_SCL_IO 5  // gpio number for I2C master clock, D1
 #define I2C_EXAMPLE_MASTER_SDA_IO 4  // gpio number for I2C master data, D2
@@ -78,7 +78,7 @@ esp_err_t mpu6050_read(i2c_port_t, uint8_t, uint8_t*, size_t);
 
 esp_err_t mpu6050_init(i2c_port_t);
 
-esp_err_t write_to_queue(sensorData_t*);
+esp_err_t write_to_sensor_queue(sensorData_t*);
 
 void acc_scale_value(sensorConfig_t*);
 

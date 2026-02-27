@@ -5,7 +5,7 @@
 
 static const char* estimator_tag = "Estimator";
 
-esp_err_t read_from_queue(sensorData_t* dest) {
+esp_err_t read_from_sensor_queue(sensorData_t* dest) {
   /**
    * Return:
    *  ESP_OK in case writing to queue was successful
@@ -14,8 +14,24 @@ esp_err_t read_from_queue(sensorData_t* dest) {
    */
 
   BaseType_t response =
-      xQueueReceive(raw_sensor_queue, dest, xQueueRecieveBlockTime);
+      xQueueReceive(raw_sensor_queue, dest, xSensorQueueRecieveBlockTime);
 
+  if (response == pdTRUE)
+    return ESP_OK;
+  else
+    return ESP_ERR_NO_MEM;
+}
+
+esp_err_t write_to_estimate_queue(state_t* data) {
+  /**
+   * Return:
+   *  ESP_OK in case writing to queue was successful
+   *  ESP_ in case queue is full or timeout occured
+   *
+   */
+
+  BaseType_t response = xQueueSendToBack(estimated_state_queue, data,
+                                         xEstimateQueueWriteBlockTime);
   if (response == pdTRUE)
     return ESP_OK;
   else
@@ -34,10 +50,15 @@ void initialise_estimates() {
   fusion_est.pitch = 0;
   fusion_est.yaw = 0;
 
+  state_est.x = 0.0f;
+  state_est.v = 0.0f;
+  state_est.pitch = 0.0f;
+  state_est.omega = 0.0f;
+
   dt = 0.0f;
 }
 
-void estimate_angles(float dt, float tau) {
+void estimate_state(float dt, float tau) {
   float g = powf(raw_sensor_values.accel.x * raw_sensor_values.accel.x +
                      raw_sensor_values.accel.y * raw_sensor_values.accel.y +
                      raw_sensor_values.accel.z * raw_sensor_values.accel.z,
@@ -66,6 +87,12 @@ void estimate_angles(float dt, float tau) {
       (1 - tau) * (fusion_est.pitch + gyro_est.pitch) + (tau)*acc_est.pitch;
   // requires magnetometer for accurate yaw estimate
   fusion_est.yaw = tau * gyro_est.yaw;
+
+  state_est.pitch = fusion_est.pitch;
+  state_est.omega = gyro_est.pitch / dt;
+  // accel + friction term
+  state_est.v += (raw_sensor_values.accel.x - 0.9f * state_est.v) * dt;
+  state_est.x += state_est.v * dt;
 }
 
 void estimate_task(void* arg) {
@@ -84,25 +111,33 @@ void estimate_task(void* arg) {
     }
 
     // blocking action:
-    if (read_from_queue(&raw_sensor_values) != ESP_OK) {
+    if (read_from_sensor_queue(&raw_sensor_values) != ESP_OK) {
       ESP_LOGE(estimator_tag,
                "Failed when attempting to read raw values from queue");
+      continue;
     }
 
-    estimate_angles(dt, tau);
+    estimate_state(dt, tau);
 
     if (counter % 5 == 0) {
-      ESP_LOGI(estimator_tag,
-               "Euler Angle Estimates: (%d.%d, %d.%d, %d.%d), counter: %d",
-               (int)(fusion_est.roll * 180 / M_PI),
-               (int)(fabs(fusion_est.roll * 180 / M_PI) * 100) % 100,
-               (int)(fusion_est.pitch * 180 / M_PI),
-               (int)(fabs(fusion_est.pitch * 180 / M_PI) * 100) % 100,
-               (int)(fusion_est.yaw * 180 / M_PI),
-               (int)(fabs(fusion_est.yaw * 180 / M_PI) * 100) % 100, counter);
+      ESP_LOGD(estimator_tag,
+               "State Estimates: (%d.%d, %d.%d, %d.%d, %d.%d), counter: %d",
+               (int)(state_est.x), (int)(fabs(state_est.x) * 100) % 100,
+               (int)(state_est.v), (int)(fabs(state_est.v) * 100) % 100,
+               (int)(state_est.pitch * 180 / M_PI),
+               (int)(fabs(state_est.pitch * 180 / M_PI) * 100) % 100,
+               (int)(state_est.omega), (int)(fabs(state_est.omega) * 100) % 100,
+               counter);
     }
 
     counter++;
+
+    // blocking action:
+    if (write_to_estimate_queue(&state_est) != ESP_OK) {
+      ESP_LOGE(estimator_tag,
+               "Failed when attempting to send estimated state to queue");
+      continue;
+    }
     vTaskDelayUntil(&xLastWakeTime, xEstimatorFrequency);
   }
 }

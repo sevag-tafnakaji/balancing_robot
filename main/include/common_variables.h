@@ -11,5 +11,9 @@
 bool calibration_finished = false;
 // sensorData_t raw_sensor_values;
 xQueueHandle raw_sensor_queue;
+// state_t queue
+xQueueHandle estimated_state_queue;
+// motor inputs queue
+xQueueHandle motor_torque_queue;
 
 #endif  // COMMON_VARIABLES_H

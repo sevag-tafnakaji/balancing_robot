@@ -17,16 +17,20 @@ eulerAngles_t acc_est;
 // angle estimate from sensor fusion
 eulerAngles_t fusion_est;
 
+state_t state_est;
+
 TickType_t xEstimatorFrequency = pdMS_TO_TICKS(10);
-TickType_t xQueueRecieveBlockTime = pdMS_TO_TICKS(10);
+TickType_t xSensorQueueRecieveBlockTime = pdMS_TO_TICKS(10);
+TickType_t xEstimateQueueWriteBlockTime = portMAX_DELAY;
 
 float dt;
 sensorData_t raw_sensor_values;
 
-esp_err_t read_from_queue(sensorData_t*);
+esp_err_t read_from_sensor_queue(sensorData_t*);
+esp_err_t write_to_estimate_queue(state_t*);
 
 // Higher tau -> trust gyroscope results more
-void estimate_angles(float dt, float tau);
+void estimate_state(float dt, float tau);
 void initialise_estimates();
 
 void estimate_task(void* arg);

@@ -361,7 +361,7 @@ void calibrate_mpu() {
   ESP_LOGI(mpu6050_tag, "Calibration Finished");
 }
 
-esp_err_t write_to_queue(sensorData_t* data) {
+esp_err_t write_to_sensor_queue(sensorData_t* data) {
   /**
    * Return:
    *  ESP_OK in case writing to queue was successful
@@ -370,7 +370,7 @@ esp_err_t write_to_queue(sensorData_t* data) {
    */
 
   BaseType_t response =
-      xQueueSendToBack(raw_sensor_queue, data, xQueueWriteBlockTime);
+      xQueueSendToBack(raw_sensor_queue, data, xSensorQueueWriteBlockTime);
   if (response == pdTRUE)
     return ESP_OK;
   else
@@ -425,7 +425,7 @@ void mpu6050_task(void* arg) {
     lowPassFilter(old_data);
 
     // blocking action:
-    if (write_to_queue(&raw_sensor_values) != ESP_OK) {
+    if (write_to_sensor_queue(&raw_sensor_values) != ESP_OK) {
       ESP_LOGE(mpu6050_tag,
                "Failed when attempting to send raw values to queue");
       continue;
