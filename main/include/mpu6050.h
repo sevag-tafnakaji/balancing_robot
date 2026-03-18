@@ -91,7 +91,8 @@ void mean_measurements();
 void calibrate_mpu();
 
 void update_data();
-void lowPassFilter();
+float EWMAStep(float, float, float);
+void EWMAFilter();
 
 void mpu6050_task(void*);
 

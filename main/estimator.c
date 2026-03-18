@@ -90,10 +90,10 @@ void estimate_state(float dt, float tau) {
   fusion_est.yaw = tau * gyro_est.yaw;
 
   state_est.pitch = fusion_est.pitch;
-  state_est.omega = gyro_est.pitch / dt;
+  state_est.omega = raw_sensor_values.gyro.y;
   // accel + friction term
-  state_est.v += (raw_sensor_values.accel.x - 0.9f * state_est.v) * dt;
-  state_est.x += (state_est.v - 0.9 * state_est.x) * dt;
+  state_est.v += (raw_sensor_values.accel.x) * dt;
+  state_est.x += (state_est.v) * dt;
 }
 
 void estimate_task(void* arg) {
