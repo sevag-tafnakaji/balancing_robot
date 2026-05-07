@@ -63,6 +63,12 @@ void controller_task(void* arg) {
     torques.T_left = -K_1_1 * x - K_1_2 * v - K_1_3 * pitch - K_1_4 * omega;
     torques.T_right = -K_1_1 * x - K_1_2 * v - K_1_3 * pitch - K_1_4 * omega;
 
+    if (mqtt_initialised && counter % 300 == 0) {
+      xSemaphoreTake(mqtt_motor_torque_sem, pdMS_TO_TICKS(5));
+      mqtt_controller = torques;
+      xSemaphoreGive(mqtt_motor_torque_sem);
+    }
+
     if (counter % 5 == 0) {
       ESP_LOGI(controller_tag, "State Estimates: (%f, %f, %f, %f), counter: %d",
                current_state_estimate.x, current_state_estimate.v,

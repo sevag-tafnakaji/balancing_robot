@@ -426,6 +426,12 @@ void mpu6050_task(void* arg) {
       continue;
     }
 
+    if (mqtt_initialised && counter % 300 == 0) {
+      xSemaphoreTake(mqtt_sensor_sem, pdMS_TO_TICKS(5));
+      mqtt_sensor = raw_sensor_values;
+      xSemaphoreGive(mqtt_sensor_sem);
+    }
+
     counter++;
 
     ESP_LOGD(mpu6050_tag, "Accel scale: %f, Gyro scale: %f",

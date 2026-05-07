@@ -4,16 +4,24 @@
 #include "data_types.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "stdbool.h"
 
 #define MAX_SENSOR_QUEUE_SIZE 150
 
 bool calibration_finished = false;
-// sensorData_t raw_sensor_values;
+bool mqtt_initialised = false;
+
 xQueueHandle raw_sensor_queue;
-// state_t queue
 xQueueHandle estimated_state_queue;
-// motor inputs queue
 xQueueHandle motor_torque_queue;
+
+SemaphoreHandle_t mqtt_sensor_sem;
+SemaphoreHandle_t mqtt_estimated_state_sem;
+SemaphoreHandle_t mqtt_motor_torque_sem;
+
+sensorData_t mqtt_sensor;
+state_t mqtt_state;
+motor_torque_t mqtt_controller;
 
 #endif  // COMMON_VARIABLES_H

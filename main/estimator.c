@@ -120,6 +120,12 @@ void estimate_task(void* arg) {
 
     estimate_state(dt, tau);
 
+    if (mqtt_initialised && counter % 300 == 0) {
+      xSemaphoreTake(mqtt_estimated_state_sem, pdMS_TO_TICKS(10));
+      mqtt_state = state_est;
+      xSemaphoreGive(mqtt_estimated_state_sem);
+    }
+
     if (counter % 5 == 0) {
       ESP_LOGD(estimator_tag,
                "State Estimates: (%lf, %lf, %lf, %lf), counter: %d",

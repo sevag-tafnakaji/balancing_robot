@@ -5,6 +5,7 @@
 #include "esp_system.h"
 #include "estimator.c"
 #include "mpu6050.c"
+#include "mqtt_sender.c"
 #include "tb6612fng.c"
 
 static const char* main_tag = "main";
@@ -46,6 +47,17 @@ void app_main(void) {
     return;
   }
 
+  ESP_LOGI(main_tag, "Initialising semaphores");
+
+  mqtt_sensor_sem = xSemaphoreCreateBinary();
+  xSemaphoreGive(mqtt_sensor_sem);
+
+  mqtt_estimated_state_sem = xSemaphoreCreateBinary();
+  xSemaphoreGive(mqtt_estimated_state_sem);
+
+  mqtt_motor_torque_sem = xSemaphoreCreateBinary();
+  xSemaphoreGive(mqtt_motor_torque_sem);
+
   ESP_LOGI(main_tag, "Beginning tasks");
 
   // start i2c task
@@ -56,4 +68,8 @@ void app_main(void) {
   xTaskCreate(controller_task, "Controller task", 2048, NULL, 3, NULL);
 
   xTaskCreate(driver_task, "DC Motor driver task", 2048, NULL, 3, NULL);
+
+  setup_mqtt();
+
+  xTaskCreate(mqtt_publisher_task, "MQTT publisher task", 2048, NULL, 1, NULL);
 }
