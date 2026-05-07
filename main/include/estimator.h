@@ -8,15 +8,16 @@
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 
-// angle estimates from gyroscope
-eulerAngles_t gyro_est;
+#define EKF_N 2
 
-// angle estimates from accelerometer
-eulerAngles_t acc_est;
+typedef struct {
+  float x[EKF_N];
+  float P[EKF_N][EKF_N];
+  float Q[EKF_N][EKF_N];
+  float R;
+} ekf_t;
 
-// angle estimate from sensor fusion
-eulerAngles_t fusion_est;
-
+ekf_t ekf;
 state_t state_est;
 
 TickType_t xEstimatorFrequency = pdMS_TO_TICKS(10);
@@ -29,10 +30,8 @@ sensorData_t raw_sensor_values;
 esp_err_t read_from_sensor_queue(sensorData_t*);
 esp_err_t write_to_estimate_queue(state_t*);
 
-// Higher tau -> trust gyroscope results more
-void estimate_state(float dt, float tau);
-void initialise_estimates();
-
+void ekf_init(ekf_t* ekf);
+void estimate_state(float dt);
 void estimate_task(void* arg);
 
 #endif  // ESTIMATOR_H

@@ -38,70 +38,78 @@ esp_err_t write_to_estimate_queue(state_t* data) {
     return ESP_FAIL;
 }
 
-void initialise_estimates() {
-  ESP_LOGI(estimator_tag, "Initialising estimator");
-  acc_est.roll = 0;
-  acc_est.pitch = 0;
-  acc_est.yaw = 0;
-  gyro_est.roll = 0;
-  gyro_est.pitch = 0;
-  gyro_est.yaw = 0;
-  fusion_est.roll = 0;
-  fusion_est.pitch = 0;
-  fusion_est.yaw = 0;
+void ekf_init(ekf_t* ekf) {
+  ekf->x[0] = 0.0f;  // pitch
+  ekf->x[1] = 0.0f;  // gyro bias
 
+  ekf->P[0][0] = 1.0f;
+  ekf->P[0][1] = 0.0f;
+  ekf->P[1][0] = 0.0f;
+  ekf->P[1][1] = 1.0f;
+
+  ekf->Q[0][0] = 0.001f;  // pitch process noise
+  ekf->Q[0][1] = 0.0f;
+  ekf->Q[1][0] = 0.0f;
+  ekf->Q[1][1] = 0.003f;  // bias random walk
+
+  ekf->R = 0.03f;  // accelerometer measurement noise
+}
+
+void estimate_state(float dt) {
+  float gyro_y = raw_sensor_values.gyro.y;
+  float ax = raw_sensor_values.accel.x;
+  float ay = raw_sensor_values.accel.y;
+  float az = raw_sensor_values.accel.z;
+
+  // --- EKF Predict ---
+  float pitch_pred = ekf.x[0] + (gyro_y - ekf.x[1]) * dt;
+  float bias_pred = ekf.x[1];
+
+  // P_pred = F * P * F^T + Q, where F = [[1, -dt], [0, 1]]
+  float P00 = ekf.P[0][0] - dt * ekf.P[1][0] -
+              dt * (ekf.P[0][1] - dt * ekf.P[1][1]) + ekf.Q[0][0];
+  float P01 = ekf.P[0][1] - dt * ekf.P[1][1] + ekf.Q[0][1];
+  float P10 = ekf.P[1][0] - dt * ekf.P[1][1] + ekf.Q[1][0];
+  float P11 = ekf.P[1][1] + ekf.Q[1][1];
+
+  // --- EKF Update ---
+  float z = atan2f(-ax, sqrtf(ay * ay + az * az));
+  float y = z - pitch_pred;
+  float S = P00 + ekf.R;
+  float K0 = P00 / S;
+  float K1 = P10 / S;
+
+  ekf.x[0] = pitch_pred + K0 * y;
+  ekf.x[1] = bias_pred + K1 * y;
+
+  // P = (I - K*H) * P_pred, H = [1, 0]
+  ekf.P[0][0] = (1.0f - K0) * P00;
+  ekf.P[0][1] = (1.0f - K0) * P01;
+  ekf.P[1][0] = P10 - K1 * P00;
+  ekf.P[1][1] = P11 - K1 * P01;
+
+  float pitch = ekf.x[0];
+  float omega = gyro_y - ekf.x[1];
+
+  // gravity-compensated forward acceleration
+  float a_forward = ax * cosf(pitch) + az * sinf(pitch);
+
+  state_est.pitch = pitch;
+  state_est.omega = omega;
+  state_est.v += a_forward * dt;
+  state_est.x += state_est.v * dt;
+}
+
+void estimate_task(void* arg) {
+  portTickType xLastWakeTime;
+
+  ekf_init(&ekf);
   state_est.x = 0.0f;
   state_est.v = 0.0f;
   state_est.pitch = 0.0f;
   state_est.omega = 0.0f;
 
-  dt = 0.0f;
-}
-
-// TODO: This is a very bad estimator. Improve this
-void estimate_state(float dt, float tau) {
-  float g = powf(raw_sensor_values.accel.x * raw_sensor_values.accel.x +
-                     raw_sensor_values.accel.y * raw_sensor_values.accel.y +
-                     raw_sensor_values.accel.z * raw_sensor_values.accel.z,
-                 0.5);
-
-  acc_est.roll = atan2f(raw_sensor_values.accel.y, raw_sensor_values.accel.z);
-  acc_est.pitch = asinf(-raw_sensor_values.accel.x / g);
-
-  float p = raw_sensor_values.gyro.x;
-  float q = raw_sensor_values.gyro.y;
-  float r = raw_sensor_values.gyro.z;
-
-  // Singularity when pitch close to ±pi/2, roll unexpected values due to
-  // division by 0
-  gyro_est.roll = (p + tanf(fusion_est.pitch) * sinf(fusion_est.roll) * q +
-                   tanf(fusion_est.pitch) * cosf(fusion_est.roll) * r) *
-                  dt;
-  gyro_est.pitch = (q * cosf(fusion_est.roll) - r * sinf(fusion_est.roll)) * dt;
-  gyro_est.yaw = (q * sinf(fusion_est.roll) / cosf(fusion_est.pitch) +
-                  r * cosf(fusion_est.roll) / cosf(fusion_est.pitch)) *
-                 dt;
-
-  fusion_est.roll =
-      (1 - tau) * (fusion_est.roll + gyro_est.roll) + (tau)*acc_est.roll;
-  fusion_est.pitch =
-      (1 - tau) * (fusion_est.pitch + gyro_est.pitch) + (tau)*acc_est.pitch;
-  // requires magnetometer for accurate yaw estimate
-  fusion_est.yaw = tau * gyro_est.yaw;
-
-  state_est.pitch = fusion_est.pitch;
-  state_est.omega = raw_sensor_values.gyro.y;
-  // accel + friction term
-  state_est.v += (raw_sensor_values.accel.x) * dt;
-  state_est.x += (state_est.v) * dt;
-}
-
-void estimate_task(void* arg) {
-  portTickType xLastWakeTime;
-  initialise_estimates();
-
   xLastWakeTime = xTaskGetTickCount();
-  float tau = 0.95f;
   dt = 0.01f;
 
   int counter = 0;
@@ -111,14 +119,13 @@ void estimate_task(void* arg) {
       continue;
     }
 
-    // blocking action:
     if (read_from_sensor_queue(&raw_sensor_values) != ESP_OK) {
       ESP_LOGE(estimator_tag,
                "Failed when attempting to read raw values from queue");
       continue;
     }
 
-    estimate_state(dt, tau);
+    estimate_state(dt);
 
     if (mqtt_initialised && counter % 300 == 0) {
       xSemaphoreTake(mqtt_estimated_state_sem, pdMS_TO_TICKS(10));
@@ -135,7 +142,6 @@ void estimate_task(void* arg) {
 
     counter++;
 
-    // blocking action:
     if (write_to_estimate_queue(&state_est) != ESP_OK) {
       ESP_LOGE(estimator_tag,
                "Failed when attempting to send estimated state to queue");
