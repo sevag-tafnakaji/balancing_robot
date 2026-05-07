@@ -16,10 +16,13 @@ esp_err_t read_from_motor_queue(motor_torque_t* dest) {
   BaseType_t response =
       xQueueReceive(motor_torque_queue, dest, xMotorQueueRecieveBlockTime);
 
+  ESP_LOGD(tb6612fng_tag, "Response: %d. Values: %f, %f", response,
+           dest->T_left, dest->T_right);
+
   if (response == pdTRUE)
     return ESP_OK;
   else
-    return ESP_ERR_NO_MEM;
+    return ESP_FAIL;
 }
 
 void set_motor_mode_A(int mode) {
@@ -55,13 +58,20 @@ void set_motor_duties(float duty_A, float duty_B) {
   update_motor_A_duty(duty_A, ui_duties);
   update_motor_B_duty(duty_B, ui_duties);
 
-  // ESP_LOGI(tb6612fng_tag, "motor A mode: %d, motor B mode: %d", curr_mode_A,
-  //          curr_mode_B);
-  // ESP_LOGI(tb6612fng_tag, "motor A duties: [%d, %d], motor B duties: [%d,
-  // %d]",
-  //          ui_duties[0], ui_duties[1], ui_duties[2], ui_duties[3]);
+  if (counter % 5 == 0) {
+    ESP_LOGD(
+        tb6612fng_tag,
+        "motor A mode: %d, motor B mode: %d, curr_mode_A, curr_mode_B, "
+        "motor A duties: [%d, %d], motor B duties: [%d, %d], motor torques: "
+        "[%f, %f]",
+        curr_mode_A, curr_mode_B, ui_duties[0], ui_duties[1], ui_duties[2],
+        ui_duties[3], motor_torques.T_left, motor_torques.T_right);
+  }
+
   ESP_ERROR_CHECK(pwm_set_duties(ui_duties));
   ESP_ERROR_CHECK(pwm_start());
+
+  counter++;
 }
 
 void update_motor_A_duty(float duty_A, uint32_t* duties) {

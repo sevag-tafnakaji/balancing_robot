@@ -19,7 +19,7 @@ esp_err_t read_from_sensor_queue(sensorData_t* dest) {
   if (response == pdTRUE)
     return ESP_OK;
   else
-    return ESP_ERR_NO_MEM;
+    return ESP_FAIL;
 }
 
 esp_err_t write_to_estimate_queue(state_t* data) {
@@ -35,7 +35,7 @@ esp_err_t write_to_estimate_queue(state_t* data) {
   if (response == pdTRUE)
     return ESP_OK;
   else
-    return ESP_ERR_NO_MEM;
+    return ESP_FAIL;
 }
 
 void initialise_estimates() {
@@ -122,13 +122,9 @@ void estimate_task(void* arg) {
 
     if (counter % 5 == 0) {
       ESP_LOGD(estimator_tag,
-               "State Estimates: (%d.%d, %d.%d, %d.%d, %d.%d), counter: %d",
-               (int)(state_est.x), (int)(fabs(state_est.x) * 100) % 100,
-               (int)(state_est.v), (int)(fabs(state_est.v) * 100) % 100,
-               (int)(state_est.pitch * 180 / M_PI),
-               (int)(fabs(state_est.pitch * 180 / M_PI) * 100) % 100,
-               (int)(state_est.omega), (int)(fabs(state_est.omega) * 100) % 100,
-               counter);
+               "State Estimates: (%lf, %lf, %lf, %lf), counter: %d",
+               state_est.x, state_est.v, state_est.pitch * 180 / M_PI,
+               state_est.omega, counter);
     }
 
     counter++;

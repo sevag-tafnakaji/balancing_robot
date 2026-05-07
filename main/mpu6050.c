@@ -227,14 +227,9 @@ void read_raw_values(sensorData_t* dest, sensorConfig_t* config, bool scale) {
   dest->gyro.z = ((int16_t)((sensor_data[12] << 8) | sensor_data[13]) +
                   config->offset_gyro.z);
 
-  ESP_LOGD(mpu6050_tag, "dest: %d.%d, %d.%d, %d.%d, %d.%d, %d.%d, %d.%d",
-           (int)dest->accel.x, (int)(fabs(dest->accel.x) * 100) % 100,
-           (int)dest->accel.y, (int)(fabs(dest->accel.y) * 100) % 100,
-           (int)(16384 - dest->accel.z),
-           (int)(fabs(16384 - dest->accel.z) * 100) % 100, (int)dest->gyro.x,
-           (int)(fabs(dest->gyro.x) * 100) % 100, (int)dest->gyro.y,
-           (int)(fabs(dest->gyro.y) * 100) % 100, (int)dest->gyro.z,
-           (int)(fabs(dest->gyro.z) * 100) % 100);
+  ESP_LOGD(mpu6050_tag, "dest: %f, %f, %f, %f, %f, %f", dest->accel.x,
+           dest->accel.y, (16384 - dest->accel.z), dest->gyro.x, dest->gyro.y,
+           dest->gyro.z);
 
   if (scale) {
     acc_scale_value(config);
@@ -298,15 +293,9 @@ void calibrate_mpu() {
     int ready = 0;
     mean_measurements();
 
-    ESP_LOGD(
-        mpu6050_tag, "MEAN: %d.%d, %d.%d, %d.%d, %d.%d, %d.%d, %d.%d",
-        (int)mean_values.accel.x, (int)(fabs(mean_values.accel.x) * 100) % 100,
-        (int)mean_values.accel.y, (int)(fabs(mean_values.accel.y) * 100) % 100,
-        (int)(16384 - mean_values.accel.z),
-        (int)(fabs(16384 - mean_values.accel.z) * 100) % 100,
-        (int)mean_values.gyro.x, (int)(fabs(mean_values.gyro.x) * 100) % 100,
-        (int)mean_values.gyro.y, (int)(fabs(mean_values.gyro.y) * 100) % 100,
-        (int)mean_values.gyro.z, (int)(fabs(mean_values.gyro.z) * 100) % 100);
+    ESP_LOGD(mpu6050_tag, "MEAN: %f, %f, %f, %f, %f, %f", mean_values.accel.x,
+             mean_values.accel.y, (16384 - mean_values.accel.z),
+             mean_values.gyro.x, mean_values.gyro.y, mean_values.gyro.z);
     ESP_LOGD(mpu6050_tag, "OFFSET: %d, %d, %d, %d, %d, %d",
              mpu6050_config.offset_accel.x, mpu6050_config.offset_accel.y,
              mpu6050_config.offset_accel.z, mpu6050_config.offset_gyro.x,
@@ -374,7 +363,7 @@ esp_err_t write_to_sensor_queue(sensorData_t* data) {
   if (response == pdTRUE)
     return ESP_OK;
   else
-    return ESP_ERR_NO_MEM;
+    return ESP_FAIL;
 }
 
 float EWMAStep(float alpha, float data, float oldData) {
@@ -414,7 +403,7 @@ void update_data() {
 void mpu6050_task(void* arg) {
   portTickType xLastWakeTime;
 
-  mpu6050_init(I2C_EXAMPLE_MASTER_NUM);
+  ESP_ERROR_CHECK(mpu6050_init(I2C_EXAMPLE_MASTER_NUM));
 
   calibrate_mpu();
 
@@ -422,6 +411,8 @@ void mpu6050_task(void* arg) {
 
   xLastWakeTime = xTaskGetTickCount();
   update_data();
+
+  int counter = 0;
 
   while (1) {
     read_raw_values(&raw_sensor_values, &mpu6050_config, true);
@@ -435,27 +426,17 @@ void mpu6050_task(void* arg) {
       continue;
     }
 
-    ESP_LOGD(mpu6050_tag, "Accel scale: %d.%d, Gyro scale: %d.%d",
-             (int)mpu6050_config.scale_accel,
-             (int)(fabs(mpu6050_config.scale_accel) * 100) % 100,
-             (int)mpu6050_config.scale_gyro,
-             (int)(fabs(mpu6050_config.scale_gyro) * 100) % 100);
+    counter++;
+
+    ESP_LOGD(mpu6050_tag, "Accel scale: %f, Gyro scale: %f",
+             mpu6050_config.scale_accel, mpu6050_config.scale_gyro);
 
     ESP_LOGD(mpu6050_tag,
-             " accel_x: %d.%d, accel_y: %d.%d, accel_z: %d.%d, gyro_x: %d.%d, "
-             "gyro_y: %d.%d, gyro_z: %d.%d",
-             (int)raw_sensor_values.accel.x,
-             (int)(fabs(raw_sensor_values.accel.x) * 100) % 100,
-             (int)raw_sensor_values.accel.y,
-             (int)(fabs(raw_sensor_values.accel.y) * 100) % 100,
-             (int)(raw_sensor_values.accel.z),
-             (int)(fabs(raw_sensor_values.accel.z) * 100) % 100,
-             (int)raw_sensor_values.gyro.x,
-             (int)(fabs(raw_sensor_values.gyro.x) * 100) % 100,
-             (int)raw_sensor_values.gyro.y,
-             (int)(fabs(raw_sensor_values.gyro.y) * 100) % 100,
-             (int)raw_sensor_values.gyro.z,
-             (int)(fabs(raw_sensor_values.gyro.z) * 100) % 100);
+             " accel_x: %f, accel_y: %f, accel_z: %f, gyro_x: %f, "
+             "gyro_y: %f, gyro_z: %f",
+             raw_sensor_values.accel.x, raw_sensor_values.accel.y,
+             raw_sensor_values.accel.z, raw_sensor_values.gyro.x,
+             raw_sensor_values.gyro.y, raw_sensor_values.gyro.z);
 
     vTaskDelayUntil(&xLastWakeTime, xSensorFrequency);
   }

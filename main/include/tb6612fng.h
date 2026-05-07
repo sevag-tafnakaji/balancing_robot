@@ -35,6 +35,7 @@ enum motor_dir { MOTOR_STOP, MOTOR_CW, MOTOR_CCW, MOTOR_SHORT_BREAK };
 
 int curr_mode_A = MOTOR_STOP;
 int curr_mode_B = MOTOR_STOP;
+int counter = 0;
 TickType_t xDriverFrequency = pdMS_TO_TICKS(10);
 TickType_t xMotorQueueRecieveBlockTime = pdMS_TO_TICKS(10);
 motor_torque_t motor_torques;

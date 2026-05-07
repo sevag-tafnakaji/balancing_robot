@@ -16,7 +16,7 @@ esp_err_t read_from_estimate_queue(state_t* dest) {
   if (response == pdTRUE)
     return ESP_OK;
   else
-    return ESP_ERR_NO_MEM;
+    return ESP_FAIL;
 }
 
 esp_err_t write_to_torques_queue(motor_torque_t* data) {
@@ -32,7 +32,8 @@ esp_err_t write_to_torques_queue(motor_torque_t* data) {
   if (response == pdTRUE)
     return ESP_OK;
   else
-    return ESP_ERR_NO_MEM;
+    return ESP_FAIL;
+  ;
 }
 
 void controller_task(void* arg) {
@@ -63,22 +64,13 @@ void controller_task(void* arg) {
     torques.T_right = -K_1_1 * x - K_1_2 * v - K_1_3 * pitch - K_1_4 * omega;
 
     if (counter % 5 == 0) {
-      ESP_LOGD(
-          controller_tag,
-          "State Estimates: (%d.%d, %d.%d, %d.%d, %d.%d), counter: %d",
-          (int)(current_state_estimate.x),
-          (int)(fabs(current_state_estimate.x) * 100) % 100,
-          (int)(current_state_estimate.v),
-          (int)(fabs(current_state_estimate.v) * 100) % 100,
-          (int)(current_state_estimate.pitch * 180 / M_PI),
-          (int)(fabs(current_state_estimate.pitch * 180 / M_PI) * 100) % 100,
-          (int)(current_state_estimate.omega),
-          (int)(fabs(current_state_estimate.omega) * 100) % 100, counter);
-      ESP_LOGD(controller_tag,
-               "Motor Toruqes - Left: %d.%d, Right: %d.%d. Counter: %d",
-               (int)(torques.T_left), (int)(fabs(torques.T_left) * 100) % 100,
-               (int)(torques.T_right), (int)(fabs(torques.T_right) * 100) % 100,
-               counter);
+      ESP_LOGI(controller_tag, "State Estimates: (%f, %f, %f, %f), counter: %d",
+               current_state_estimate.x, current_state_estimate.v,
+               current_state_estimate.pitch * 180 / M_PI,
+               current_state_estimate.omega, counter);
+      ESP_LOGI(controller_tag,
+               "Motor Toruqes - Left: %f, Right: %f. Counter: %d",
+               torques.T_left, torques.T_right, counter);
     }
 
     counter++;

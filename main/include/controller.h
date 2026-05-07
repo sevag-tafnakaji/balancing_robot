@@ -27,6 +27,7 @@ TickType_t xStateQueueRecieveBlockTime = pdMS_TO_TICKS(5);
 TickType_t xTorqueQueueSendBlockTime = portMAX_DELAY;
 
 esp_err_t read_from_estimate_queue(state_t*);
+esp_err_t write_to_torques_queue(motor_torque_t*);
 
 // TODO: Add reference tracking
 

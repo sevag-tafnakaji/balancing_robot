@@ -10,7 +10,17 @@
 static const char* main_tag = "main";
 
 void app_main(void) {
-  ESP_LOGI(main_tag, "Beginning tasks");
+  ESP_LOGI(main_tag, "Startup..");
+  ESP_LOGI(main_tag, "Free memory: %d bytes", esp_get_free_heap_size());
+  ESP_LOGI(main_tag, "IDF version: %s", esp_get_idf_version());
+
+  /* Print chip information */
+  esp_chip_info_t chip_info;
+  esp_chip_info(&chip_info);
+  ESP_LOGI(main_tag, "This is ESP8266 chip with %d CPU core(s), and WiFi",
+           chip_info.cores);
+
+  ESP_LOGI(main_tag, "Initialising queues");
 
   raw_sensor_queue = xQueueCreate(5, sizeof(sensorData_t));
 
@@ -36,12 +46,14 @@ void app_main(void) {
     return;
   }
 
+  ESP_LOGI(main_tag, "Beginning tasks");
+
   // start i2c task
   xTaskCreate(mpu6050_task, "mpu6050 reading task", 2048, NULL, 20, NULL);
 
   xTaskCreate(estimate_task, "Angle estimator task", 2048, NULL, 10, NULL);
 
-  xTaskCreate(controller_task, "Controller task", 2048, NULL, 5, NULL);
+  xTaskCreate(controller_task, "Controller task", 2048, NULL, 3, NULL);
 
-  xTaskCreate(driver_task, "DC Motor driver task", 2048, NULL, 5, NULL);
+  xTaskCreate(driver_task, "DC Motor driver task", 2048, NULL, 3, NULL);
 }
