@@ -26,7 +26,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
 }
 
 static void mqtt_event_handler(void* handler_args, esp_event_base_t base,
-                                int32_t event_id, void* event_data) {
+                               int32_t event_id, void* event_data) {
   mqtt_event_handler_cb(event_data);
 }
 
@@ -50,6 +50,8 @@ void setup_mqtt() {
 
 void mqtt_publisher_task(void* arg) {
   char buf[256];
+
+  portTickType xLastWakeTime = xTaskGetTickCount();
 
   while (1) {
     if (!mqtt_initialised) {
@@ -81,14 +83,14 @@ void mqtt_publisher_task(void* arg) {
     esp_mqtt_client_publish(mqtt_client, "robot/sensor", buf, 0, 0, 0);
 
     snprintf(buf, sizeof(buf),
-             "{\"x\":%.4f,\"v\":%.4f,\"pitch\":%.4f,\"omega\":%.4f}",
-             state.x, state.v, state.pitch, state.omega);
+             "{\"x\":%.4f,\"v\":%.4f,\"pitch\":%.4f,\"omega\":%.4f}", state.x,
+             state.v, state.pitch, state.omega);
     esp_mqtt_client_publish(mqtt_client, "robot/state", buf, 0, 0, 0);
 
     snprintf(buf, sizeof(buf), "{\"T_left\":%.4f,\"T_right\":%.4f}",
              motor.T_left, motor.T_right);
     esp_mqtt_client_publish(mqtt_client, "robot/motor", buf, 0, 0, 0);
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelayUntil(&xLastWakeTime, xMQTTSenderFrequency);
   }
 }

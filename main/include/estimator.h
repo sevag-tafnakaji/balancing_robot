@@ -22,7 +22,7 @@ state_t state_est;
 
 TickType_t xEstimatorFrequency = pdMS_TO_TICKS(10);
 TickType_t xSensorQueueRecieveBlockTime = pdMS_TO_TICKS(10);
-TickType_t xEstimateQueueWriteBlockTime = portMAX_DELAY;
+TickType_t xEstimateQueueWriteBlockTime = pdMS_TO_TICKS(10);
 
 float dt;
 sensorData_t raw_sensor_values;

@@ -69,7 +69,8 @@ void app_main(void) {
 
   xTaskCreate(driver_task, "DC Motor driver task", 2048, NULL, 3, NULL);
 
-  setup_mqtt();
+  // setup_mqtt();
 
-  xTaskCreate(mqtt_publisher_task, "MQTT publisher task", 2048, NULL, 1, NULL);
+  // xTaskCreate(mqtt_publisher_task, "MQTT publisher task", 2048, NULL, 1,
+  // NULL);
 }

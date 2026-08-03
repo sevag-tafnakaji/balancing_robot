@@ -22,9 +22,9 @@
 state_t current_state_estimate;
 motor_torque_t torques;
 
-TickType_t xControllerFrequency = pdMS_TO_TICKS(5);
-TickType_t xStateQueueRecieveBlockTime = pdMS_TO_TICKS(5);
-TickType_t xTorqueQueueSendBlockTime = portMAX_DELAY;
+TickType_t xControllerFrequency = pdMS_TO_TICKS(10);
+TickType_t xStateQueueRecieveBlockTime = pdMS_TO_TICKS(10);
+TickType_t xTorqueQueueSendBlockTime = pdMS_TO_TICKS(10);
 
 esp_err_t read_from_estimate_queue(state_t*);
 esp_err_t write_to_torques_queue(motor_torque_t*);

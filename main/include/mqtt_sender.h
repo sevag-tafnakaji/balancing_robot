@@ -13,6 +13,8 @@
 #include "nvs_flash.h"
 #include "protocol_examples_common.h"
 
+TickType_t xMQTTSenderFrequency = pdMS_TO_TICKS(100);
+
 void setup_mqtt();
 void mqtt_publisher_task(void* arg);
 

@@ -41,17 +41,14 @@ void controller_task(void* arg) {
 
   int counter = 0;
 
-  esp_err_t err;
-
   while (1) {
     if (!calibration_finished) {
       continue;
     }
     // blocking action:
-    if ((err = read_from_estimate_queue(&current_state_estimate) != ESP_OK)) {
+    if ((read_from_estimate_queue(&current_state_estimate) != ESP_OK)) {
       ESP_LOGE(controller_tag,
-               "Failed when attempting to read state estimate from queue: %d",
-               err);
+               "Failed when attempting to read state estimate from queue");
     }
 
     float x, v, pitch, omega;
@@ -64,7 +61,7 @@ void controller_task(void* arg) {
     torques.T_right = -K_1_1 * x - K_1_2 * v - K_1_3 * pitch - K_1_4 * omega;
 
     if (mqtt_initialised && counter % 300 == 0) {
-      xSemaphoreTake(mqtt_motor_torque_sem, pdMS_TO_TICKS(5));
+      xSemaphoreTake(mqtt_motor_torque_sem, xControllerFrequency);
       mqtt_controller = torques;
       xSemaphoreGive(mqtt_motor_torque_sem);
     }
